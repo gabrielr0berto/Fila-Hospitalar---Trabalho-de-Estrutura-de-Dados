@@ -135,12 +135,34 @@ Repare nas duas regras funcionando juntas: Diego recebeu a senha 2 (chegou em
 segundo) e é chamado primeiro, porque é o mais grave. Já Bruno vem antes de
 Carla — os dois são amarelos, e Bruno chegou antes.
 
+## 🌐 Versão web
+
+Além do programa de terminal, o projeto tem duas páginas web com a mesma
+lógica, escritas em HTML e JavaScript puros (sem servidor e sem instalação).
+Basta abrir o arquivo no navegador.
+
+| Página | O que faz |
+|---|---|
+| `web/fila-hospitalar.html` | Painel do pronto-socorro: admitir paciente, chamar o próximo, ver a ordem de atendimento com o tempo de espera e os 5 baldes FIFO desenhados na tela |
+| `web/triagem.html` | Triagem de um paciente por vez: identificação, queixa, sinais vitais e sinais de alerta, gerando a ficha com a cor de risco e o histórico de triagens |
+
+As classes `Fila` e `FilaDePrioridade` e a função de classificação de risco
+são uma tradução direta do código Python. A tela de triagem acrescenta
+**sinais de alerta** (por exemplo, dor no peito ou falta de ar intensa), que
+podem elevar a cor mesmo com os sinais vitais normais. Esses critérios são
+simplificados e têm uso apenas educacional.
+
+Os dados ficam salvos no navegador de quem está usando (`localStorage`).
+
 ## 📁 Estrutura do projeto
 
 ```
 .
-├── fila_hospitalar.py   # Código-fonte principal
-└── README.md            # Este arquivo
+├── fila_hospitalar.py        # Código-fonte principal (terminal)
+├── web/
+│   ├── fila-hospitalar.html  # Versão web da fila de atendimento
+│   └── triagem.html          # Tela de triagem básica
+└── README.md                 # Este arquivo
 ```
 
 ## 🛠️ Detalhes técnicos

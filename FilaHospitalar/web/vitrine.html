@@ -1,0 +1,622 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fila Hospitalar em Ação</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Barlow+Semi+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* Plano: vitrine de venda. Herói escuro com a proposta, simulação ao vivo de um plantão (recepção → filas por cor → consultórios), depois funcionalidades, comparação e pacotes. */
+:root {
+  --bg: #f1f5f7; --surface: #ffffff; --ink: #13212a; --muted: #586a75; --line: #d3dde2; --soft: #e5eef2;
+  --accent: #0b6e8a; --accent-ink: #ffffff;
+  --night: #0d1a21; --night-2: #142630; --night-ink: #e6eff2; --night-muted: #93a9b3; --night-line: #23394a;
+  --r5: #c8102e; --r5-bg: #fbe5e8; --r4: #e05a0c; --r4-bg: #fdeadf;
+  --r3: #b88a00; --r3-bg: #fbf3d3; --r2: #2b8a3e; --r2-bg: #e2f2e5; --r1: #1c64c4; --r1-bg: #e1ebf9;
+  --f-display: "Barlow Semi Condensed", "Arial Narrow", sans-serif;
+  --f-body: "Atkinson Hyperlegible", "Segoe UI", Arial, sans-serif;
+  --f-mono: "JetBrains Mono", Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0b151b; --surface: #13212a; --ink: #e4ecef; --muted: #93a6b0; --line: #26394a; --soft: #1a2c36;
+    --accent: #3fb3d3; --accent-ink: #06222b;
+    --r5: #ff5c6f; --r5-bg: #3a1a20; --r4: #ff8a45; --r4-bg: #3a2416; --r3: #f2c53d; --r3-bg: #352d12;
+    --r2: #5cc56f; --r2-bg: #17301c; --r1: #6aa5ff; --r1-bg: #172740;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0b151b; --surface: #13212a; --ink: #e4ecef; --muted: #93a6b0; --line: #26394a; --soft: #1a2c36;
+  --accent: #3fb3d3; --accent-ink: #06222b;
+  --r5: #ff5c6f; --r5-bg: #3a1a20; --r4: #ff8a45; --r4-bg: #3a2416; --r3: #f2c53d; --r3-bg: #352d12;
+  --r2: #5cc56f; --r2-bg: #17301c; --r1: #6aa5ff; --r1-bg: #172740;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 16px; line-height: 1.5; }
+h1, h2, h3 { font-family: var(--f-display); margin: 0; text-wrap: balance; }
+p { margin: 0; }
+.num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+.wrap { max-width: 1240px; margin: 0 auto; padding: 0 24px; }
+@media (max-width: 600px) { .wrap { padding: 0 16px; } }
+.lv5 { --c: var(--r5); --cb: var(--r5-bg); } .lv4 { --c: var(--r4); --cb: var(--r4-bg); }
+.lv3 { --c: var(--r3); --cb: var(--r3-bg); } .lv2 { --c: var(--r2); --cb: var(--r2-bg); }
+.lv1 { --c: var(--r1); --cb: var(--r1-bg); }
+
+/* Herói */
+.hero { background: var(--night); color: var(--night-ink); position: relative; overflow: hidden; }
+.hero::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 10px;
+  background: linear-gradient(#d92b43 0 20%, #ef6c1a 20% 40%, #e7b416 40% 60%, #3a9a4d 60% 80%, #3b7bd6 80%); }
+.nav { display: flex; align-items: center; gap: 12px; padding: 18px 0; }
+.nav .logo { display: flex; align-items: center; gap: 10px; font-family: var(--f-display); font-weight: 700; font-size: 22px; margin-right: auto; }
+.nav a { color: var(--night-muted); text-decoration: none; font-size: 14.5px; }
+.nav a:hover { color: var(--night-ink); }
+@media (max-width: 700px) { .nav a.opt { display: none; } }
+.hero-grid { display: grid; grid-template-columns: 1.15fr .85fr; gap: 48px; padding: 40px 0 64px; align-items: center; }
+@media (max-width: 900px) { .hero-grid { grid-template-columns: 1fr; gap: 32px; padding: 24px 0 48px; } }
+.eyebrow { font-size: 13px; letter-spacing: .14em; text-transform: uppercase; color: #7fc4d8; font-weight: 700; }
+.hero h1 { font-size: clamp(40px, 6vw, 68px); line-height: 1.02; margin: 14px 0 18px; font-weight: 700; }
+.hero h1 em { font-style: normal; color: #ff6b7d; }
+.hero .lead { font-size: 19px; color: #c3d3da; max-width: 560px; }
+.cta { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 28px; }
+.btn { border: 0; border-radius: 10px; padding: 13px 20px; font-weight: 700; background: var(--accent); color: var(--accent-ink); text-decoration: none; display: inline-flex; align-items: center; gap: 8px; }
+.hero .btn { background: #3fb3d3; color: #06222b; }
+.btn:hover { filter: brightness(1.08); }
+.btn.line { background: transparent; color: var(--night-ink); border: 1px solid var(--night-line); }
+.proof { display: flex; flex-wrap: wrap; gap: 28px; margin-top: 36px; }
+.proof div b { display: block; font-family: var(--f-display); font-size: 32px; line-height: 1; }
+.proof div span { font-size: 13.5px; color: var(--night-muted); }
+
+.mini { background: var(--night-2); border: 1px solid var(--night-line); border-radius: 16px; padding: 20px; display: grid; gap: 10px; }
+.mini .t { display: flex; justify-content: space-between; font-size: 13px; color: var(--night-muted); }
+.mini-row { display: grid; grid-template-columns: 26px 1fr auto; gap: 12px; align-items: center; padding: 10px 12px; border-radius: 10px; background: #0f2029; }
+.mini-row .n { font-family: var(--f-mono); color: var(--night-muted); font-size: 13px; }
+.mini-row b { font-size: 15px; }
+.mini-row small { display: block; color: var(--night-muted); font-size: 12.5px; }
+.tag { font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; color: #fff; background: var(--c); white-space: nowrap; }
+.lv3 .tag, .tag.lv3 { color: #1b1400; }
+.mini .foot { font-size: 13px; color: #c3d3da; border-top: 1px solid var(--night-line); padding-top: 12px; }
+
+/* Seções */
+section.block { padding: 72px 0; }
+@media (max-width: 600px) { section.block { padding: 48px 0; } }
+.sec-head { display: grid; gap: 10px; margin-bottom: 28px; max-width: 760px; }
+.sec-head .eyebrow { color: var(--accent); }
+.sec-head h2 { font-size: clamp(30px, 4vw, 44px); line-height: 1.05; }
+.sec-head p { color: var(--muted); font-size: 17px; }
+
+/* Demo */
+.demo { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; overflow: hidden; box-shadow: 0 18px 50px -30px rgb(10 30 40 / .45); }
+.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; padding: 14px 18px; border-bottom: 1px solid var(--line); background: var(--soft); }
+.clock { font-family: var(--f-mono); font-size: 28px; font-weight: 600; letter-spacing: .02em; margin-right: 4px; }
+.clock-l { font-size: 12px; color: var(--muted); line-height: 1.2; margin-right: auto; }
+.ctl { border: 1px solid var(--line); background: var(--surface); border-radius: 9px; padding: 8px 14px; font-size: 14px; }
+.ctl:hover { border-color: var(--accent); }
+.ctl.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 700; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+.seg button { border: 0; background: var(--surface); padding: 8px 11px; font-size: 13.5px; font-family: var(--f-mono); }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+
+.stage { display: grid; grid-template-columns: 250px 1fr 300px; min-height: 420px; }
+@media (max-width: 1080px) { .stage { grid-template-columns: 1fr 1fr; } .col-fila { grid-column: 1 / -1; order: -1; } }
+@media (max-width: 640px) { .stage { grid-template-columns: 1fr; } }
+.col { padding: 16px 18px; border-right: 1px solid var(--line); min-width: 0; display: grid; gap: 12px; align-content: start; }
+.col:last-child { border-right: 0; }
+@media (max-width: 1080px) { .col { border-right: 0; border-bottom: 1px solid var(--line); } }
+.col h3 { font-size: 17px; font-weight: 600; display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+.col h3 small { white-space: nowrap; font-family: var(--f-body); font-weight: 400; font-size: 12.5px; color: var(--muted); }
+
+.tri-card { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: grid; gap: 6px; background: var(--bg); animation: in .35s ease-out; }
+.tri-card .who { display: flex; justify-content: space-between; gap: 8px; font-weight: 700; font-size: 14.5px; }
+.tri-card .vit { font-family: var(--f-mono); font-size: 12px; color: var(--muted); }
+.tri-card .st { font-size: 12.5px; color: var(--muted); display: flex; align-items: center; gap: 6px; }
+.spin { width: 10px; height: 10px; border-radius: 50%; border: 2px solid var(--line); border-top-color: var(--accent); animation: rot .8s linear infinite; }
+.empty { color: var(--muted); font-size: 13.5px; padding: 8px 0; }
+
+.lanes { display: grid; gap: 8px; }
+.lane { display: grid; grid-template-columns: 112px 1fr; gap: 10px; align-items: stretch; }
+@media (max-width: 480px) { .lane { grid-template-columns: 1fr; gap: 4px; } }
+.lane-n { display: grid; align-content: center; padding: 6px 10px; border-radius: 9px; background: var(--c); color: #fff; }
+.lane.lv3 .lane-n { color: #1b1400; }
+.lane-n b { font-family: var(--f-display); font-size: 16px; letter-spacing: .02em; }
+.lane-n span { font-size: 11.5px; opacity: .9; }
+.track { display: flex; align-items: center; gap: 6px; padding: 7px 8px; border-radius: 9px; background: var(--cb); min-height: 50px; overflow-x: auto; }
+.track .end { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.chip { flex: none; display: grid; padding: 4px 9px; border-radius: 7px; background: var(--surface); border: 1.5px solid var(--c); animation: in .35s ease-out; min-width: 76px; }
+.chip b { font-family: var(--f-mono); font-size: 12.5px; }
+.chip span { font-size: 12px; white-space: nowrap; }
+.chip small { font-size: 11px; color: var(--muted); font-family: var(--f-mono); }
+.chip.late small { color: var(--r5); font-weight: 700; }
+.chip.next { box-shadow: 0 0 0 3px var(--c); }
+
+.tv { background: var(--night); color: var(--night-ink); border-radius: 12px; padding: 14px 16px; display: grid; gap: 4px; border-left: 8px solid var(--c, var(--night-line)); }
+.tv .l { font-size: 11px; letter-spacing: .12em; text-transform: uppercase; color: var(--night-muted); }
+.tv .s { font-family: var(--f-display); font-size: 40px; font-weight: 700; line-height: 1; }
+.tv .n { font-size: 15px; overflow-wrap: anywhere; }
+.tv .r { font-size: 13px; color: var(--night-muted); }
+.tv.flash { animation: flash 1s ease-out; }
+.cons { border: 1px solid var(--line); border-radius: 10px; padding: 10px 12px; display: grid; gap: 6px; }
+.cons .h { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--muted); }
+.cons .p { font-weight: 700; font-size: 14.5px; overflow-wrap: anywhere; }
+.prog { height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.prog i { display: block; height: 100%; background: var(--c, var(--accent)); transition: width .4s; }
+
+.under { display: grid; grid-template-columns: 1fr 340px; border-top: 1px solid var(--line); }
+@media (max-width: 900px) { .under { grid-template-columns: 1fr; } }
+.log { padding: 14px 18px; border-right: 1px solid var(--line); }
+@media (max-width: 900px) { .log { border-right: 0; border-bottom: 1px solid var(--line); } }
+.log h3, .kpis h3 { font-size: 17px; font-weight: 600; margin-bottom: 8px; }
+.log ol { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 210px; overflow-y: auto; }
+.log li { display: grid; grid-template-columns: 48px 1fr; gap: 10px; font-size: 14px; padding: 6px 0; border-bottom: 1px solid var(--line); animation: in .35s ease-out; }
+.log li:last-child { border-bottom: 0; }
+.log li .num { color: var(--muted); font-size: 12.5px; padding-top: 1px; }
+.log li.key { background: linear-gradient(90deg, var(--soft), transparent); border-radius: 6px; padding-left: 4px; }
+.nm { font-weight: 700; color: var(--c); }
+.kpis { padding: 14px 18px; display: grid; gap: 10px; align-content: start; }
+.kgrid { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.k { background: var(--soft); border-radius: 10px; padding: 10px 12px; }
+.k b { display: block; font-family: var(--f-mono); font-size: 22px; }
+.k span { font-size: 12.5px; color: var(--muted); }
+.k.alert b { color: var(--r5); }
+.bars { display: grid; gap: 5px; }
+.brow { display: grid; grid-template-columns: 70px 1fr 54px; gap: 8px; align-items: center; font-size: 12.5px; }
+.brow .bt { height: 8px; border-radius: 4px; background: var(--line); overflow: hidden; }
+.brow .bt i { display: block; height: 100%; background: var(--c); transition: width .4s; }
+.brow .num { text-align: right; color: var(--muted); }
+
+/* Funcionalidades */
+.feat { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+@media (max-width: 900px) { .feat { grid-template-columns: 1fr 1fr; } }
+@media (max-width: 600px) { .feat { grid-template-columns: 1fr; } }
+.f { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; padding: 20px; display: grid; gap: 8px; align-content: start; }
+.f .ic { width: 40px; height: 40px; border-radius: 10px; display: grid; place-items: center; background: var(--soft); color: var(--accent); }
+.f h3 { font-size: 21px; font-weight: 600; }
+.f p { color: var(--muted); font-size: 15px; }
+
+/* Regras */
+.rules { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+@media (max-width: 700px) { .rules { grid-template-columns: 1fr; } }
+.rule { border-radius: 14px; padding: 22px; background: var(--surface); border: 1px solid var(--line); display: grid; gap: 12px; }
+.rule h3 { font-size: 24px; }
+.ex { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; font-size: 14.5px; }
+.ex .arrow { color: var(--muted); }
+
+/* Comparação */
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
+table { width: 100%; border-collapse: collapse; font-size: 15px; }
+th, td { padding: 13px 16px; text-align: left; border-bottom: 1px solid var(--line); }
+th { font-size: 12.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+tr:last-child td { border-bottom: 0; }
+td.y { color: var(--r2); font-weight: 700; }
+td.n { color: var(--muted); }
+th.us, td.us { background: var(--soft); }
+
+/* Preços */
+.plans { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; align-items: stretch; }
+@media (max-width: 900px) { .plans { grid-template-columns: 1fr; } }
+.plan { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 24px; display: grid; gap: 14px; align-content: start; position: relative; }
+.plan.rec { border: 2px solid var(--accent); box-shadow: 0 18px 40px -28px var(--accent); }
+.plan .badge { position: absolute; top: -12px; left: 24px; background: var(--accent); color: var(--accent-ink); font-size: 12px; font-weight: 700; padding: 3px 10px; border-radius: 999px; }
+.plan h3 { font-size: 24px; }
+.price { font-family: var(--f-display); font-size: 44px; font-weight: 700; line-height: 1; }
+.price small { font-size: 16px; color: var(--muted); font-family: var(--f-body); font-weight: 400; }
+.plan ul { margin: 0; padding: 0; list-style: none; display: grid; gap: 8px; font-size: 14.5px; }
+.plan li { display: grid; grid-template-columns: 18px 1fr; gap: 8px; }
+.plan li::before { content: "✓"; color: var(--r2); font-weight: 700; }
+.plan .meta { font-size: 13.5px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 12px; }
+.terms { margin-top: 16px; font-size: 14px; color: var(--muted); }
+
+footer { background: var(--night); color: var(--night-muted); padding: 32px 0; font-size: 14px; }
+footer .wrap { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; }
+footer a { color: #7fc4d8; }
+
+@keyframes rot { to { transform: rotate(360deg); } }
+@keyframes in { from { opacity: .2; transform: translateY(4px); } to { opacity: 1; transform: none; } }
+@keyframes flash { from { box-shadow: 0 0 0 6px var(--c); } to { box-shadow: 0 0 0 0 transparent; } }
+@media (prefers-reduced-motion: reduce) { *, *::before { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="wrap">
+    <nav class="nav">
+      <span class="logo"><svg width="30" height="30" viewBox="0 0 34 34" aria-hidden="true"><rect width="34" height="34" rx="8" fill="#3fb3d3"/><path d="M14 8h6v6h6v6h-6v6h-6v-6H8v-6h6z" fill="#06222b"/></svg>Fila Hospitalar</span>
+      <a class="opt" href="#demo">Em ação</a>
+      <a class="opt" href="#recursos">Recursos</a>
+    </nav>
+    <div class="hero-grid">
+      <div>
+        <p class="eyebrow">Classificação de risco para pronto-socorro</p>
+        <h1>O paciente mais grave entra primeiro. <em>Sem ninguém perder a vez.</em></h1>
+        <p class="lead">O sistema lê os sinais vitais, define a cor de risco e monta a fila sozinho. Entre cores diferentes, vence a gravidade. Na mesma cor, vence quem chegou antes.</p>
+        <div class="cta">
+          <a class="btn" href="#demo" id="cta-demo">▶ Ver um plantão em ação</a>
+          <a class="btn line" href="#recursos">Ver recursos</a>
+        </div>
+        <div class="proof">
+          <div><b>5</b><span>níveis de risco, do vermelho ao azul</span></div>
+          <div><b>O(1)</b><span>para admitir e chamar, em qualquer volume</span></div>
+          <div><b>0</b><span>servidores ou licenças para instalar</span></div>
+        </div>
+      </div>
+      <div class="mini" aria-label="Exemplo de ordem de atendimento">
+        <div class="t"><span>Ordem de chamada</span><span class="num">07:12</span></div>
+        <div class="mini-row lv5"><span class="n">1º</span><div><b>Diego Almeida</b><small>chegou em 4º · SpO₂ 84%</small></div><span class="tag">VERMELHO</span></div>
+        <div class="mini-row lv4"><span class="n">2º</span><div><b>Eduarda Lima</b><small>chegou em 5º · FC 126 bpm</small></div><span class="tag">LARANJA</span></div>
+        <div class="mini-row lv3"><span class="n">3º</span><div><b>Bruno Carvalho</b><small>chegou em 2º · dor 5/10</small></div><span class="tag">AMARELO</span></div>
+        <div class="mini-row lv3"><span class="n">4º</span><div><b>Carla Menezes</b><small>chegou em 3º · 38,6 °C</small></div><span class="tag">AMARELO</span></div>
+        <div class="mini-row lv1"><span class="n">5º</span><div><b>Ana Ribeiro</b><small>chegou em 1º · sinais normais</small></div><span class="tag">AZUL</span></div>
+        <p class="foot">Diego chegou depois de três pessoas e entra primeiro. Bruno e Carla têm a mesma cor, e Bruno chegou antes.</p>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="block" id="demo">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Em ação</p>
+        <h2>Um plantão inteiro, acelerado</h2>
+        <p>Pacientes chegam, passam pela triagem, entram na fila da sua cor e são chamados para dois consultórios. Cada segundo na tela vale dois minutos de plantão.</p>
+      </div>
+
+      <div class="demo">
+        <div class="bar">
+          <span class="clock num" id="clock">07:00</span>
+          <span class="clock-l">hora do<br>plantão</span>
+          <button class="ctl primary" id="btn-play" type="button">▶ Iniciar plantão</button>
+          <div class="seg" role="group" aria-label="Velocidade">
+            <button type="button" data-speed="1" aria-pressed="true">1×</button>
+            <button type="button" data-speed="2" aria-pressed="false">2×</button>
+            <button type="button" data-speed="4" aria-pressed="false">4×</button>
+          </div>
+          <button class="ctl" id="btn-add" type="button">+ Chegou paciente grave</button>
+          <button class="ctl" id="btn-reset" type="button">Recomeçar</button>
+        </div>
+
+        <div class="stage">
+          <div class="col">
+            <h3>Recepção e triagem <small id="tri-n">0</small></h3>
+            <div id="triagem" style="display:grid;gap:8px"></div>
+          </div>
+          <div class="col col-fila">
+            <h3>Fila por cor de risco <small>entra pelo fim · sai pela frente</small></h3>
+            <div class="lanes" id="lanes"></div>
+          </div>
+          <div class="col">
+            <h3>Chamada</h3>
+            <div class="tv" id="tv" aria-live="polite">
+              <span class="l">Painel da recepção</span>
+              <span class="s num" id="tv-s">—</span>
+              <span class="n" id="tv-n">Aguardando o início do plantão</span>
+              <span class="r" id="tv-r"></span>
+            </div>
+            <div id="cons" style="display:grid;gap:8px"></div>
+          </div>
+        </div>
+
+        <div class="under">
+          <div class="log">
+            <h3>O que está acontecendo</h3>
+            <ol id="log"></ol>
+          </div>
+          <div class="kpis">
+            <h3>Indicadores do plantão</h3>
+            <div class="kgrid">
+              <div class="k"><b id="k-esp">0</b><span>aguardando</span></div>
+              <div class="k"><b id="k-at">0</b><span>atendidos</span></div>
+              <div class="k" id="k-late-box"><b id="k-late">0</b><span>acima do tempo-alvo</span></div>
+              <div class="k"><b id="k-pass">0</b><span>vezes que o grave passou à frente</span></div>
+            </div>
+            <div class="bars" id="bars" aria-label="Espera média por cor"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" id="recursos" style="padding-top:0">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Recursos</p>
+        <h2>Tudo o que a recepção precisa, numa tela</h2>
+      </div>
+      <div class="feat">
+        <div class="f"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg></div><h3>Classificação automática</h3><p>Frequência cardíaca, saturação, temperatura e dor viram uma cor de risco na hora. Vale sempre o sinal mais grave.</p></div>
+        <div class="f"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M3 6h18M3 12h12M3 18h6"/></svg></div><h3>Fila justa por cor</h3><p>Uma fila para cada cor. Quem chegou antes na mesma cor é chamado antes, sem exceção e sem discussão no balcão.</p></div>
+        <div class="f"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></div><h3>Alerta de tempo-alvo</h3><p>Cada cor tem seu prazo: imediato, 10, 60, 120 ou 240 minutos. Quem passou do prazo fica em destaque.</p></div>
+        <div class="f"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><rect x="2" y="4" width="20" height="13" rx="2"/><path d="M8 21h8M12 17v4"/></svg></div><h3>Painel de chamada</h3><p>Senha, nome e consultório em letras grandes, prontos para a TV da sala de espera.</p></div>
+        <div class="f"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M9 11l3 3 8-8"/><path d="M20 12v7a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h9"/></svg></div><h3>Decisão explicada</h3><p>A tela mostra qual sinal definiu a cor, como "SpO₂ 84% → vermelho". O enfermeiro confere e confirma.</p></div>
+        <div class="f"><div class="ic"><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" aria-hidden="true"><path d="M12 2v20M2 12h20"/></svg></div><h3>Sem instalação</h3><p>Roda no navegador de qualquer computador, sem servidor e sem licença de terceiros. Funciona até sem internet.</p></div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" style="padding-top:0">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Como decide</p>
+        <h2>Duas regras, aplicadas sempre juntas</h2>
+      </div>
+      <div class="rules">
+        <div class="rule">
+          <h3>Entre cores diferentes, vence a gravidade</h3>
+          <div class="ex"><span class="tag lv1">AZUL</span> chegou 08:00 <span class="arrow">vs</span> <span class="tag lv5">VERMELHO</span> chegou 10:00</div>
+          <p>O vermelho é chamado primeiro, mesmo tendo chegado duas horas depois.</p>
+        </div>
+        <div class="rule">
+          <h3>Na mesma cor, vence quem chegou antes</h3>
+          <div class="ex"><span class="tag lv3">AMARELO</span> chegou 08:00 <span class="arrow">vs</span> <span class="tag lv3">AMARELO</span> chegou 09:00</div>
+          <p>O das 08:00 é chamado primeiro. Por isso o sistema usa filas FIFO em vez de um heap, que poderia trocar a ordem.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="block" style="padding-top:0">
+    <div class="wrap">
+      <div class="sec-head">
+        <p class="eyebrow">Comparação</p>
+        <h2>Por que não continuar no papel ou na planilha</h2>
+      </div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th>Critério</th><th>Papel ou senha comum</th><th>Planilha</th><th class="us">Fila Hospitalar</th></tr></thead>
+          <tbody>
+            <tr><td>Classifica a cor pelos sinais vitais</td><td class="n">Não</td><td class="n">Só com fórmulas montadas à mão</td><td class="us y">Sim, na hora</td></tr>
+            <tr><td>Grave passa à frente automaticamente</td><td class="n">Depende de quem está no balcão</td><td class="n">Ordenação manual</td><td class="us y">Sim</td></tr>
+            <tr><td>Garante a ordem de chegada na mesma cor</td><td class="n">Não</td><td class="n">Pode trocar ao reordenar</td><td class="us y">Sim, por filas FIFO</td></tr>
+            <tr><td>Avisa quem passou do tempo-alvo</td><td class="n">Não</td><td class="n">Não</td><td class="us y">Sim</td></tr>
+            <tr><td>Painel de chamada para TV</td><td class="n">Não</td><td class="n">Não</td><td class="us y">Sim</td></tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>Desenvolvido por Gabriel Roberto Marinho Da Silva Reis</span>
+    <a href="https://github.com/gabrielr0berto/Fila-Hospitalar---Trabalho-de-Estrutura-de-Dados">Código no GitHub</a>
+  </div>
+</footer>
+
+<script>
+/* ===== Núcleo: mesma lógica do fila_hospitalar.py ===== */
+const CAPACIDADE = 100, NIVEIS = 5;
+const NOMES = {5: "VERMELHO", 4: "LARANJA", 3: "AMARELO", 2: "VERDE", 1: "AZUL"};
+const ALVO = {5: 0, 4: 10, 3: 60, 2: 120, 1: 240};
+
+class Fila {
+  constructor() { this.itens = []; }
+  vazia() { return this.itens.length === 0; }
+  cheia() { return this.itens.length === CAPACIDADE; }
+  tamanho() { return this.itens.length; }
+  enfileirar(p) { if (this.cheia()) return false; this.itens.push(p); return true; }
+  desenfileirar() { return this.vazia() ? [false, null] : [true, this.itens.shift()]; }
+  frente() { return this.vazia() ? [false, null] : [true, this.itens[0]]; }
+}
+class FilaDePrioridade {
+  constructor() { this.baldes = [null]; for (let n = 1; n <= NIVEIS; n++) this.baldes.push(new Fila()); }
+  total() { let s = 0; for (let n = 1; n <= NIVEIS; n++) s += this.baldes[n].tamanho(); return s; }
+  inserir(p) { return this.baldes[p.risco].enfileirar(p); }
+  proximo() { for (let n = NIVEIS; n >= 1; n--) if (!this.baldes[n].vazia()) return this.baldes[n].desenfileirar(); return [false, null]; }
+  espiar() { for (let n = NIVEIS; n >= 1; n--) if (!this.baldes[n].vazia()) return this.baldes[n].frente(); return [false, null]; }
+  todos() { const o = []; for (let n = NIVEIS; n >= 1; n--) o.push(...this.baldes[n].itens); return o; }
+}
+function classificar(fc, sat, temp, dor) {
+  let n = 1, motivo = "sinais vitais normais", top = 0;
+  const m = (lv, txt) => { if (lv > n) n = lv; if (lv > top) { top = lv; motivo = txt; } };
+  if (fc > 150 || fc < 40) m(5, "FC " + fc + " bpm"); else if (fc > 120) m(4, "FC " + fc + " bpm"); else if (fc > 100) m(3, "FC " + fc + " bpm");
+  if (sat < 85) m(5, "SpO₂ " + sat + "%"); else if (sat < 90) m(4, "SpO₂ " + sat + "%"); else if (sat < 94) m(3, "SpO₂ " + sat + "%");
+  const t = temp.toFixed(1).replace(".", ",") + " °C";
+  if (temp >= 39.5 || temp <= 35) m(5, "temperatura " + t); else if (temp >= 38.5) m(3, "temperatura " + t); else if (temp >= 37.8) m(2, "temperatura " + t);
+  if (dor >= 9) m(4, "dor " + dor + "/10"); else if (dor >= 6) m(3, "dor " + dor + "/10"); else if (dor >= 4) m(2, "dor " + dor + "/10");
+  return { nivel: n, motivo };
+}
+
+/* ===== Simulação ===== */
+const INICIO = 7 * 60, PASSO = 2, TRIAGEM_MIN = 2;
+const NOMES_P = ["Fernanda Rocha","Gustavo Pires","Helena Duarte","Igor Batista","Juliana Moraes","Kleber Santos","Larissa Farias","Marcos Teixeira","Natália Cruz","Otávio Lopes","Patrícia Nunes","Rafael Costa","Sabrina Melo","Thiago Ramos","Úrsula Campos","Vinícius Prado","Yasmin Torres","Wagner Dias","Bianca Freitas","Caio Moura","Daniela Reis","Elias Barros","Flávia Gomes","Heitor Lima"];
+const ROTEIRO = [
+  { t: 0, nome: "Ana Ribeiro", v: [78, 98, 36.6, 2] },
+  { t: 2, nome: "Bruno Carvalho", v: [108, 96, 37.2, 5] },
+  { t: 4, nome: "Carla Menezes", v: [92, 93, 38.6, 3] },
+  { t: 8, nome: "Diego Almeida", v: [168, 84, 37.4, 6] },
+  { t: 10, nome: "Eduarda Lima", v: [126, 95, 37.0, 5] }
+];
+const rnd = (a, b) => a + Math.floor(Math.random() * (b - a + 1));
+function sinaisAleatorios(alvo) {
+  let v = [rnd(68, 96), rnd(95, 99), +(36 + Math.random() * 1.2).toFixed(1), rnd(0, 3)];
+  if (alvo === 5) { const k = rnd(0, 2); if (k === 0) v[0] = rnd(155, 180); else if (k === 1) v[1] = rnd(78, 84); else v[2] = +(39.6 + Math.random() * .8).toFixed(1); }
+  if (alvo === 4) { if (Math.random() < .5) v[0] = rnd(122, 145); else v[3] = rnd(9, 10); }
+  if (alvo === 3) { const k = rnd(0, 2); if (k === 0) v[3] = rnd(6, 8); else if (k === 1) v[1] = rnd(90, 93); else v[2] = +(38.5 + Math.random() * .8).toFixed(1); }
+  if (alvo === 2) { if (Math.random() < .5) v[3] = rnd(4, 5); else v[2] = +(37.8 + Math.random() * .6).toFixed(1); }
+  return v;
+}
+function sortearNivel() { const r = Math.random(); return r < .05 ? 5 : r < .16 ? 4 : r < .42 ? 3 : r < .76 ? 2 : 1; }
+
+let S;
+function novoEstado() {
+  return {
+    clock: INICIO, fila: new FilaDePrioridade(), triagem: [], senha: 1, roteiro: 0,
+    proxChegada: INICIO, nomeIdx: 0, chegadaOrdem: 0,
+    cons: [ { id: 1, p: null, ini: 0, fim: INICIO + 12, pre: true }, { id: 2, p: null, ini: 0, fim: INICIO + 18, pre: true } ],
+    atendidos: [], log: [], passou: 0, ultimo: null
+  };
+}
+
+const $ = id => document.getElementById(id);
+const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const hh = m => String(Math.floor(m / 60) % 24).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0");
+const nm = p => '<span class="nm lv' + p.risco + '">' + esc(p.nome) + '</span>';
+function log(html, key) { S.log.unshift({ t: S.clock, html, key }); if (S.log.length > 60) S.log.pop(); }
+
+function chegar(nome, v) {
+  const p = { senha: S.senha++, nome, v, chegada: S.clock, ordem: ++S.chegadaOrdem, triadoEm: S.clock + TRIAGEM_MIN };
+  S.triagem.push(p);
+  log("<b>" + esc(nome) + "</b> chegou e recebeu a senha " + p.senha + ". Triagem em andamento.");
+}
+
+function passo() {
+  S.clock += PASSO;
+
+  // chegadas
+  while (S.roteiro < ROTEIRO.length && INICIO + ROTEIRO[S.roteiro].t <= S.clock) {
+    const r = ROTEIRO[S.roteiro++]; chegar(r.nome, r.v);
+    if (S.roteiro === ROTEIRO.length) S.proxChegada = S.clock + rnd(5, 9);
+  }
+  if (S.roteiro >= ROTEIRO.length && S.clock >= S.proxChegada) {
+    chegar(NOMES_P[S.nomeIdx++ % NOMES_P.length], sinaisAleatorios(sortearNivel()));
+    S.proxChegada = S.clock + rnd(4, 10);
+  }
+
+  // triagem concluída -> fila do nível
+  S.triagem = S.triagem.filter(p => {
+    if (S.clock < p.triadoEm) return true;
+    const c = classificar(...p.v);
+    p.risco = c.nivel; p.motivo = c.motivo;
+    S.fila.inserir(p);
+    log(nm(p) + " classificado como <b>" + NOMES[p.risco].toLowerCase() + "</b> (" + esc(c.motivo) + ") e foi para o fim da fila " + NOMES[p.risco].toLowerCase() + ".");
+    return false;
+  });
+
+  // consultórios
+  S.cons.forEach(c => {
+    if (S.clock >= c.fim && (c.p || c.pre)) {
+      if (c.p) { S.atendidos.push(c.p); log(nm(c.p) + " terminou o atendimento no consultório " + c.id + "."); }
+      c.p = null; c.pre = false;
+    }
+    if (!c.p && !c.pre) {
+      const espera = S.fila.todos();
+      const [ok, p] = S.fila.proximo();
+      if (!ok) return;
+      p.chamada = S.clock; c.p = p; c.ini = S.clock;
+      c.fim = S.clock + (p.risco >= 4 ? rnd(14, 20) : rnd(8, 14));
+      S.ultimo = { p, cons: c.id };
+      const passados = espera.filter(o => o !== p && o.ordem < p.ordem);
+      const mesmaCor = espera.filter(o => o !== p && o.risco === p.risco);
+      log("Painel: senha <b>" + p.senha + "</b>, " + nm(p) + ", consultório " + c.id + ".", false);
+      if (passados.length) {
+        S.passou++;
+        log(nm(p) + " passou à frente de " + passados.length + (passados.length === 1 ? " paciente que chegou antes" : " pacientes que chegaram antes") +
+          " (" + passados.slice(0, 3).map(o => esc(o.nome.split(" ")[0])).join(", ") + (passados.length > 3 ? "…" : "") + "). Gravidade vence entre cores diferentes.", true);
+      }
+      if (mesmaCor.length) {
+        log(nm(p) + " foi antes de " + mesmaCor.slice(0, 2).map(o => esc(o.nome.split(" ")[0])).join(" e ") +
+          ": mesma cor, e " + esc(p.nome.split(" ")[0]) + " chegou primeiro.", true);
+      }
+      flashTV();
+    }
+  });
+
+  render();
+}
+
+/* ===== Desenho ===== */
+function flashTV() { const tv = $("tv"); tv.classList.remove("flash"); void tv.offsetWidth; tv.classList.add("flash"); }
+
+function render() {
+  $("clock").textContent = hh(S.clock);
+
+  // triagem
+  $("tri-n").textContent = S.triagem.length ? S.triagem.length + " em triagem" : "";
+  $("triagem").innerHTML = S.triagem.length ? S.triagem.map(p =>
+    '<div class="tri-card"><div class="who"><span>' + esc(p.nome) + '</span><span class="num">#' + p.senha + '</span></div>' +
+    '<div class="vit">FC ' + p.v[0] + ' · SpO₂ ' + p.v[1] + '% · ' + p.v[2].toFixed(1).replace(".", ",") + ' °C · dor ' + p.v[3] + '</div>' +
+    '<div class="st"><span class="spin"></span>avaliando sinais vitais</div></div>').join("")
+    : '<p class="empty">Ninguém na triagem agora.</p>';
+
+  // filas
+  const [okN, prox] = S.fila.espiar();
+  let lanes = "", late = 0;
+  for (let n = NIVEIS; n >= 1; n--) {
+    const b = S.fila.baldes[n];
+    const chips = b.itens.map(p => {
+      const w = S.clock - p.chegada, atrasado = n === 5 ? w > 4 : w > ALVO[n];
+      if (atrasado) late++;
+      return '<div class="chip' + (okN && prox === p ? " next" : "") + (atrasado ? " late" : "") + '" title="' + esc(p.nome) + ' · ' + esc(p.motivo) + '">' +
+        '<b>#' + p.senha + '</b><span>' + esc(p.nome.split(" ")[0]) + '</span><small>' + w + ' min</small></div>';
+    }).join("");
+    lanes += '<div class="lane lv' + n + '"><div class="lane-n"><b>' + NOMES[n] + '</b><span>' + (n === 5 ? "imediato" : "até " + ALVO[n] + " min") + ' · ' + b.tamanho() + '</span></div>' +
+      '<div class="track">' + (b.vazia() ? '<span class="end">vazia</span>' : '<span class="end">frente →</span>' + chips) + '</div></div>';
+  }
+  $("lanes").innerHTML = lanes;
+
+  // painel + consultórios
+  const tv = $("tv");
+  if (S.ultimo) {
+    tv.className = "tv lv" + S.ultimo.p.risco + (tv.classList.contains("flash") ? " flash" : "");
+    $("tv-s").textContent = "Senha " + S.ultimo.p.senha;
+    $("tv-n").textContent = S.ultimo.p.nome + " → Consultório " + S.ultimo.cons;
+    $("tv-r").textContent = NOMES[S.ultimo.p.risco] + " · esperou " + (S.ultimo.p.chamada - S.ultimo.p.chegada) + " min";
+  }
+  $("cons").innerHTML = S.cons.map(c => {
+    if (c.pre) return '<div class="cons"><div class="h"><span>Consultório ' + c.id + '</span><span>livre às ' + hh(c.fim) + '</span></div><div class="p" style="color:var(--muted);font-weight:400">Atendimento anterior em andamento</div></div>';
+    if (!c.p) return '<div class="cons"><div class="h"><span>Consultório ' + c.id + '</span><span>livre</span></div><div class="p" style="color:var(--muted);font-weight:400">Aguardando paciente</div></div>';
+    const pct = Math.min(100, (S.clock - c.ini) / (c.fim - c.ini) * 100);
+    return '<div class="cons lv' + c.p.risco + '"><div class="h"><span>Consultório ' + c.id + '</span><span class="tag lv' + c.p.risco + '">' + NOMES[c.p.risco] + '</span></div>' +
+      '<div class="p">#' + c.p.senha + ' ' + esc(c.p.nome) + '</div><div class="prog"><i style="width:' + pct.toFixed(0) + '%"></i></div></div>';
+  }).join("");
+
+  // log
+  $("log").innerHTML = S.log.length ? S.log.map(l => '<li class="' + (l.key ? "key" : "") + '"><span class="num">' + hh(l.t) + '</span><span>' + l.html + '</span></li>').join("")
+    : '<li><span class="num">' + hh(S.clock) + '</span><span>Clique em <b>Iniciar plantão</b>. Os cinco primeiros pacientes repetem o exemplo da apresentação.</span></li>';
+
+  // indicadores
+  const espera = S.fila.total() + S.triagem.length;
+  $("k-esp").textContent = espera;
+  $("k-at").textContent = S.atendidos.length + S.cons.filter(c => c.p).length;
+  $("k-late").textContent = late;
+  $("k-late-box").classList.toggle("alert", late > 0);
+  $("k-pass").textContent = S.passou;
+
+  const chamados = [...S.atendidos, ...S.cons.filter(c => c.p).map(c => c.p)];
+  const maxRef = 60;
+  let bars = '<div style="font-size:12.5px;color:var(--muted)">Espera média até a chamada</div>';
+  for (let n = NIVEIS; n >= 1; n--) {
+    const g = chamados.filter(p => p.risco === n);
+    const media = g.length ? Math.round(g.reduce((s, p) => s + p.chamada - p.chegada, 0) / g.length) : null;
+    bars += '<div class="brow lv' + n + '"><span>' + NOMES[n].charAt(0) + NOMES[n].slice(1).toLowerCase() + '</span><div class="bt"><i style="width:' + (media === null ? 0 : Math.min(100, media / maxRef * 100)) + '%"></i></div><span class="num">' + (media === null ? "–" : media + " min") + '</span></div>';
+  }
+  $("bars").innerHTML = bars;
+}
+
+/* ===== Controles ===== */
+let timer = null, speed = 1;
+function rodando() { return timer !== null; }
+function play() {
+  if (rodando()) return;
+  timer = setInterval(passo, 1000 / speed);
+  $("btn-play").textContent = "❚❚ Pausar";
+}
+function pause() { clearInterval(timer); timer = null; $("btn-play").textContent = "▶ Continuar"; }
+$("btn-play").addEventListener("click", () => rodando() ? pause() : play());
+document.querySelectorAll("[data-speed]").forEach(b => b.addEventListener("click", () => {
+  speed = +b.dataset.speed;
+  document.querySelectorAll("[data-speed]").forEach(x => x.setAttribute("aria-pressed", x === b ? "true" : "false"));
+  if (rodando()) { clearInterval(timer); timer = setInterval(passo, 1000 / speed); }
+}));
+$("btn-add").addEventListener("click", () => {
+  chegar(NOMES_P[S.nomeIdx++ % NOMES_P.length], sinaisAleatorios(Math.random() < .5 ? 5 : 4));
+  render();
+});
+$("btn-reset").addEventListener("click", () => { pause(); S = novoEstado(); $("btn-play").textContent = "▶ Iniciar plantão"; $("tv").className = "tv"; $("tv-s").textContent = "—"; $("tv-n").textContent = "Aguardando o início do plantão"; $("tv-r").textContent = ""; render(); });
+$("cta-demo").addEventListener("click", () => setTimeout(play, 500));
+
+S = novoEstado();
+render();
+</script>
+</body>
+</html>

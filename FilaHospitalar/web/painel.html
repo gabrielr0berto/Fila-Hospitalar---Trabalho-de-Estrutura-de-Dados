@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Painel de Chamada · Fila Hospitalar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Barlow+Semi+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* Painel para a TV da sala de espera. Só lê o estado: mostra quem a tela "Fila e chamada" chamou. */
+:root {
+  --bg: #0d1a21; --surface: #142630; --ink: #e6eff2; --muted: #93a9b3; --line: #23394a; --soft: #1a2f3b;
+  --accent: #3fb3d3; --accent-ink: #06222b;
+  --r5: #d92b43; --r4: #e8590c; --r3: #e7b416; --r2: #2f8f45; --r1: #2f6fd0;
+  --f-display: "Barlow Semi Condensed", "Arial Narrow", sans-serif;
+  --f-body: "Atkinson Hyperlegible", "Segoe UI", Arial, sans-serif;
+  --f-mono: "JetBrains Mono", Consolas, monospace;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); display: flex; flex-direction: column; min-height: 100vh; }
+.num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+.lv5 { --c: var(--r5); } .lv4 { --c: var(--r4); } .lv3 { --c: var(--r3); } .lv2 { --c: var(--r2); } .lv1 { --c: var(--r1); }
+
+.top { display: flex; align-items: center; gap: 16px; padding: 18px 32px; border-bottom: 1px solid var(--line); }
+.top h1 { font-family: var(--f-display); font-size: clamp(22px, 2.4vw, 34px); margin: 0; margin-right: auto; display: flex; align-items: center; gap: 12px; }
+.clock { font-family: var(--f-mono); font-size: clamp(24px, 2.6vw, 40px); font-weight: 600; }
+.tools { display: flex; gap: 8px; }
+.tools button { font: inherit; font-size: 14px; color: var(--ink); background: var(--soft); border: 1px solid var(--line); border-radius: 8px; padding: 8px 12px; cursor: pointer; }
+.tools button:hover { border-color: var(--accent); }
+.tools button[aria-pressed="true"] { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+
+.grid { flex: 1; display: grid; grid-template-columns: 1.6fr 1fr; gap: 28px; padding: 28px 32px 32px; min-height: 0; }
+@media (max-width: 900px) { .grid { grid-template-columns: 1fr; } }
+
+.now { position: relative; border-radius: 24px; background: var(--surface); border: 1px solid var(--line); overflow: hidden;
+  display: grid; align-content: center; gap: clamp(8px, 1.4vw, 20px); padding: clamp(28px, 4vw, 64px); padding-left: calc(clamp(28px, 4vw, 64px) + 18px); }
+.now::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 18px; background: var(--c, var(--line)); }
+.now .lbl { font-size: clamp(16px, 1.5vw, 22px); letter-spacing: .14em; text-transform: uppercase; color: var(--muted); font-weight: 700; }
+.now .senha { font-family: var(--f-display); font-weight: 700; font-size: clamp(72px, 11vw, 190px); line-height: .9; }
+.now .nome { font-size: clamp(30px, 3.6vw, 64px); font-weight: 700; overflow-wrap: anywhere; }
+.now .cons { display: inline-flex; align-items: center; gap: 14px; font-family: var(--f-display); font-size: clamp(32px, 3.8vw, 66px); font-weight: 700; color: var(--accent); }
+.now .risk { justify-self: start; font-size: clamp(16px, 1.4vw, 22px); font-weight: 700; padding: 6px 16px; border-radius: 999px; background: var(--c); color: #fff; }
+.now.lv3 .risk { color: #1b1400; }
+.now.flash { animation: flash 1.2s ease-out 3; }
+@keyframes flash { 0% { box-shadow: 0 0 0 0 var(--c); background: var(--soft); } 100% { box-shadow: 0 0 0 28px transparent; background: var(--surface); } }
+.now .empty { font-size: clamp(26px, 2.6vw, 42px); color: var(--muted); }
+
+.side { display: grid; grid-template-rows: auto 1fr auto; gap: 16px; min-height: 0; }
+.side h2 { font-family: var(--f-display); font-size: clamp(22px, 2vw, 30px); margin: 0; color: var(--muted); font-weight: 600; }
+.prev { list-style: none; margin: 0; padding: 0; display: grid; gap: 12px; align-content: start; }
+.prev li { display: grid; grid-template-columns: auto 1fr auto; gap: 16px; align-items: center; padding: 16px 20px; border-radius: 14px; background: var(--surface);
+  border: 1px solid var(--line); border-left: 10px solid var(--c); }
+.prev li b { font-family: var(--f-display); font-size: clamp(28px, 2.6vw, 44px); }
+.prev li span { font-size: clamp(18px, 1.6vw, 26px); overflow-wrap: anywhere; }
+.prev li small { font-size: clamp(15px, 1.3vw, 20px); color: var(--muted); text-align: right; white-space: nowrap; }
+.prev .none { color: var(--muted); font-size: 20px; border-left-color: var(--line); display: block; }
+
+.wait { display: grid; grid-template-columns: repeat(5, 1fr); gap: 8px; }
+.wait div { border-radius: 12px; padding: 10px 12px; background: var(--surface); border-top: 6px solid var(--c); text-align: center; }
+.wait b { display: block; font-family: var(--f-mono); font-size: clamp(22px, 2vw, 32px); }
+.wait span { font-size: 13px; color: var(--muted); }
+
+.foot { padding: 0 32px 18px; color: var(--muted); font-size: 14px; }
+
+.sound { position: fixed; inset: 0; background: rgb(5 12 16 / .78); display: grid; place-items: center; z-index: 40; }
+.sound[hidden] { display: none; }
+.sound .box { background: var(--surface); border: 1px solid var(--line); border-radius: 18px; padding: 28px; max-width: 460px; display: grid; gap: 14px; text-align: center; }
+.sound h3 { font-family: var(--f-display); font-size: 28px; margin: 0; }
+.sound p { margin: 0; color: var(--muted); }
+.sound .row { display: flex; gap: 10px; justify-content: center; }
+.sound button { font: inherit; font-weight: 700; border: 0; border-radius: 10px; padding: 12px 18px; cursor: pointer; background: var(--accent); color: var(--accent-ink); }
+.sound button.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); font-weight: 400; }
+@media (prefers-reduced-motion: reduce) { .now.flash { animation: none; } }
+</style>
+</head>
+<body>
+
+<header class="top">
+  <h1><svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><rect width="34" height="34" rx="8" fill="#3fb3d3"/><path d="M14 8h6v6h6v6h-6v6h-6v-6H8v-6h6z" fill="#06222b"/></svg>Pronto-socorro · Chamada</h1>
+  <div class="tools">
+    <button type="button" id="btn-som" aria-pressed="false">Som desligado</button>
+    <button type="button" id="btn-full">Tela cheia</button>
+  </div>
+  <span class="clock" id="clock">--:--</span>
+</header>
+
+<main class="grid">
+  <section class="now" id="now" aria-live="assertive">
+    <span class="empty">Aguardando a primeira chamada</span>
+  </section>
+  <aside class="side">
+    <h2>Chamados anteriores</h2>
+    <ul class="prev" id="prev"></ul>
+    <div>
+      <h2 style="font-size:20px;margin-bottom:8px">Aguardando atendimento</h2>
+      <div class="wait" id="wait"></div>
+    </div>
+  </aside>
+</main>
+<p class="foot">Os pacientes são chamados por gravidade. Na mesma cor, por ordem de chegada.</p>
+
+<div class="sound" id="sound">
+  <div class="box">
+    <h3>Ativar o aviso sonoro?</h3>
+    <p>O navegador só toca som depois de um clique. Com o som ativado, cada chamada toca um aviso.</p>
+    <div class="row">
+      <button type="button" id="s-on">Ativar som</button>
+      <button type="button" class="ghost" id="s-off">Sem som</button>
+    </div>
+  </div>
+</div>
+
+<script src="sistema.js"></script>
+<script>
+/* Esta tela só LÊ o estado comum: quando a tela "Fila e chamada" chama
+   alguém, o painel recebe o aviso e mostra a senha em destaque. */
+const S = Sistema;
+const { NOMES_RISCO, esc, hora } = S;
+const $ = id => document.getElementById(id);
+
+// Nome curto para a TV: primeiro nome + inicial do sobrenome
+function nomeCurto(n) {
+  const p = String(n).trim().split(/\s+/);
+  return p.length > 1 ? p[0] + " " + p[p.length - 1][0] + "." : p[0];
+}
+
+let somLigado = false, ctx = null;
+function bip() {
+  if (!somLigado) return;
+  try {
+    ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
+    [[880, 0], [660, .28]].forEach(([f, t]) => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.frequency.value = f; o.type = "sine";
+      g.gain.setValueAtTime(0, ctx.currentTime + t);
+      g.gain.linearRampToValueAtTime(.35, ctx.currentTime + t + .03);
+      g.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + t + .5);
+      o.connect(g).connect(ctx.destination); o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + .55);
+    });
+  } catch (e) {}
+}
+function setSom(on) {
+  somLigado = on;
+  $("btn-som").setAttribute("aria-pressed", on ? "true" : "false");
+  $("btn-som").textContent = on ? "Som ligado" : "Som desligado";
+  $("sound").hidden = true;
+  if (on) bip();
+}
+
+let marca = null; // identifica a última chamada exibida
+function render() {
+  const e = S.estado();
+  const u = e.ultimo;
+  const now = $("now");
+  if (u) {
+    now.className = "now lv" + u.risco + (now.classList.contains("flash") ? " flash" : "");
+    now.innerHTML =
+      '<span class="lbl">Senha chamada</span>' +
+      '<span class="senha num">' + u.senha + '</span>' +
+      '<span class="nome">' + esc(nomeCurto(u.nome)) + '</span>' +
+      '<span class="cons">→ Consultório ' + (u.consultorio || 1) + '</span>' +
+      '<span class="risk">' + NOMES_RISCO[u.risco] + '</span>';
+    const m = u.senha + ":" + (u.rechamada || u.chamada);
+    if (marca !== null && m !== marca) {
+      now.classList.remove("flash"); void now.offsetWidth; now.classList.add("flash");
+      bip();
+    }
+    marca = m;
+  } else {
+    now.className = "now";
+    now.innerHTML = '<span class="empty">Aguardando a primeira chamada</span>';
+    marca = "";
+  }
+
+  const ant = e.historico.slice(1, 5);
+  $("prev").innerHTML = ant.length ? ant.map(p =>
+    '<li class="lv' + p.risco + '"><b class="num">' + p.senha + '</b><span>' + esc(nomeCurto(p.nome)) + '</span><small>Consultório ' + (p.consultorio || 1) + '<br>' + hora(p.chamada) + '</small></li>').join("")
+    : '<li class="none">Nenhuma chamada anterior.</li>';
+
+  $("wait").innerHTML = [5, 4, 3, 2, 1].map(n =>
+    '<div class="lv' + n + '"><b>' + e.fila.baldes[n].tamanho() + '</b><span>' + NOMES_RISCO[n].toLowerCase() + '</span></div>').join("");
+}
+
+function relogio() { $("clock").textContent = new Date().toLocaleTimeString("pt-BR", {hour: "2-digit", minute: "2-digit"}); }
+
+$("s-on").addEventListener("click", () => setSom(true));
+$("s-off").addEventListener("click", () => setSom(false));
+$("btn-som").addEventListener("click", () => setSom(!somLigado));
+$("btn-full").addEventListener("click", () => {
+  if (document.fullscreenElement) document.exitFullscreen();
+  else document.documentElement.requestFullscreen && document.documentElement.requestFullscreen().catch(() => {});
+});
+
+S.aoMudar(render);
+render(); relogio();
+setInterval(relogio, 10000);
+</script>
+</body>
+</html>

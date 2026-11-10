@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Triagem Básica</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Barlow+Semi+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* Plano: ficha de triagem em 3 etapas à esquerda, resultado fixo à direita, histórico embaixo. Mesma identidade do sistema de fila. */
+:root {
+  --bg: #eef2f4; --surface: #ffffff; --ink: #15232b; --muted: #5b6c76; --line: #d5dee3;
+  --accent: #0b6e8a; --accent-ink: #ffffff; --soft: #e3edf1;
+  --r5: #c8102e; --r5-bg: #fbe5e8; --r4: #e8590c; --r4-bg: #fdeadf;
+  --r3: #b88a00; --r3-bg: #fbf3d3; --r2: #2b8a3e; --r2-bg: #e2f2e5;
+  --r1: #1c64c4; --r1-bg: #e1ebf9;
+  --f-display: "Barlow Semi Condensed", "Arial Narrow", sans-serif;
+  --f-body: "Atkinson Hyperlegible", "Segoe UI", Arial, sans-serif;
+  --f-mono: "JetBrains Mono", Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e171c; --surface: #162229; --ink: #e4ecef; --muted: #93a6b0; --line: #2a3a43;
+    --accent: #3fb3d3; --accent-ink: #06222b; --soft: #1d2d35;
+    --r5: #ff5c6f; --r5-bg: #3a1a20; --r4: #ff8a45; --r4-bg: #3a2416;
+    --r3: #f2c53d; --r3-bg: #352d12; --r2: #5cc56f; --r2-bg: #17301c; --r1: #6aa5ff; --r1-bg: #172740;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e171c; --surface: #162229; --ink: #e4ecef; --muted: #93a6b0; --line: #2a3a43;
+  --accent: #3fb3d3; --accent-ink: #06222b; --soft: #1d2d35;
+  --r5: #ff5c6f; --r5-bg: #3a1a20; --r4: #ff8a45; --r4-bg: #3a2416;
+  --r3: #f2c53d; --r3-bg: #352d12; --r2: #5cc56f; --r2-bg: #17301c; --r1: #6aa5ff; --r1-bg: #172740;
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); font-size: 15px; line-height: 1.45; }
+h1, h2, h3 { font-family: var(--f-display); margin: 0; text-wrap: balance; }
+.num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+button, input, select, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; padding: 14px 20px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: 10px; margin-right: auto; }
+.brand h1 { font-size: 24px; font-weight: 700; }
+.brand small { display: block; color: var(--muted); font-size: 12.5px; }
+.counts { display: flex; flex-wrap: wrap; gap: 6px; }
+.count { display: flex; align-items: center; gap: 6px; padding: 5px 10px; border-radius: 8px; background: var(--cb); font-size: 13px; }
+.count b { font-family: var(--f-mono); color: var(--c); font-size: 16px; }
+
+main { display: grid; grid-template-columns: 1fr minmax(320px, 420px); gap: 18px; padding: 18px 20px 28px; max-width: 1280px; margin: 0 auto; align-items: start; }
+@media (max-width: 900px) { main { grid-template-columns: 1fr; padding: 14px 16px 24px; } }
+.col { display: grid; gap: 18px; min-width: 0; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; min-width: 0; }
+.step { display: grid; grid-template-columns: 34px 1fr; gap: 12px; }
+.step-n { width: 34px; height: 34px; border-radius: 50%; background: var(--soft); color: var(--accent); display: grid; place-items: center; font-family: var(--f-display); font-weight: 700; font-size: 18px; }
+.step h2 { font-size: 20px; font-weight: 600; margin: 4px 0 12px; }
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.grid4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+@media (max-width: 640px) { .grid4 { grid-template-columns: 1fr 1fr; } .grid2 { grid-template-columns: 1fr; } }
+.field { display: grid; gap: 4px; align-content: start; }
+.field label { font-weight: 700; font-size: 13.5px; }
+.field label span { display: block; font-weight: 400; color: var(--muted); font-size: 12px; }
+.field input, .field select, .field textarea { width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px; background: var(--bg); }
+.field textarea { resize: vertical; min-height: 64px; }
+.field input[aria-invalid="true"] { border-color: var(--r5); }
+.err { color: var(--r5); font-size: 12.5px; }
+.err:empty { display: none; }
+
+.alerts { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+@media (max-width: 640px) { .alerts { grid-template-columns: 1fr; } }
+.alert { display: flex; gap: 10px; align-items: flex-start; padding: 10px 12px; border: 1px solid var(--line); border-radius: 9px; cursor: pointer; background: var(--bg); }
+.alert:hover { border-color: var(--c); }
+.alert input { margin-top: 3px; accent-color: var(--c); width: 18px; height: 18px; flex: none; }
+.alert .t { font-size: 14px; }
+.alert .t small { display: block; color: var(--c); font-weight: 700; font-size: 11.5px; letter-spacing: .04em; }
+.alert:has(input:checked) { background: var(--cb); border-color: var(--c); }
+
+.lv5 { --c: var(--r5); --cb: var(--r5-bg); } .lv4 { --c: var(--r4); --cb: var(--r4-bg); }
+.lv3 { --c: var(--r3); --cb: var(--r3-bg); } .lv2 { --c: var(--r2); --cb: var(--r2-bg); }
+.lv1 { --c: var(--r1); --cb: var(--r1-bg); }
+
+/* Resultado */
+.result { position: sticky; top: 14px; border-top: 8px solid var(--c, var(--line)); display: grid; gap: 14px; }
+.result .lbl { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+.big { display: flex; align-items: center; gap: 14px; padding: 14px 16px; border-radius: 10px; background: var(--cb, var(--soft)); }
+.dot { width: 54px; height: 54px; border-radius: 50%; background: var(--c, var(--line)); flex: none; }
+.big h2 { font-size: 34px; color: var(--c); line-height: 1; }
+.big p { margin: 4px 0 0; font-size: 14px; }
+.why { margin: 0; padding-left: 18px; display: grid; gap: 4px; font-size: 14px; }
+.why .tag { font-weight: 700; color: var(--c); }
+.btn { border: 0; border-radius: 9px; padding: 12px 16px; font-weight: 700; cursor: pointer; background: var(--accent); color: var(--accent-ink); width: 100%; }
+.btn:hover { filter: brightness(1.08); }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); font-weight: 400; width: auto; padding: 7px 12px; font-size: 13px; }
+.note { font-size: 12.5px; color: var(--muted); margin: 0; }
+.toast { font-size: 13.5px; padding: 9px 12px; border-radius: 8px; background: var(--soft); }
+.toast:empty { display: none; }
+
+/* Ficha */
+.ficha { border: 1px dashed var(--line); border-radius: 10px; padding: 14px; font-size: 13.5px; display: grid; gap: 6px; }
+.ficha:empty { display: none; }
+.ficha .row { display: flex; justify-content: space-between; gap: 10px; flex-wrap: wrap; }
+.ficha .row > span:first-child { color: var(--muted); }
+.copy-row { display: flex; gap: 8px; }
+
+/* Histórico */
+.card-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; flex-wrap: wrap; }
+.card-head h2 { font-size: 20px; font-weight: 600; }
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th { text-align: left; font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr:last-child td { border-bottom: 0; }
+td.q { color: var(--muted); min-width: 160px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px 2px 8px; border-radius: 999px; font-size: 12.5px; font-weight: 700; color: var(--c); background: var(--cb); white-space: nowrap; }
+.pill::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
+.empty { color: var(--muted); text-align: center; padding: 16px; }
+/* Situação do paciente na fila (vem da tela de fila) */
+.sit { font-size: 12.5px; white-space: nowrap; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); }
+.sit.wait { color: var(--accent); border-color: var(--accent); font-weight: 700; }
+.sit.done { color: var(--muted); background: var(--soft); }
+a.btn { text-decoration: none; display: inline-flex; align-items: center; width: auto; }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><rect width="34" height="34" rx="8" fill="var(--accent)"/><path d="M14 8h6v6h6v6h-6v6h-6v-6H8v-6h6z" fill="var(--accent-ink)"/></svg>
+    <div><h1>Triagem Básica</h1><small>Classificação de risco · projeto Fila Hospitalar · uso educacional</small></div>
+  </div>
+  <div class="counts" id="counts" aria-label="Triagens por cor"></div>
+</header>
+
+<main>
+  <form class="col" id="form" novalidate>
+    <section class="card step">
+      <div class="step-n">1</div>
+      <div>
+        <h2>Identificação</h2>
+        <div class="grid2">
+          <div class="field">
+            <label for="f-nome">Nome do paciente</label>
+            <input id="f-nome" autocomplete="off" maxlength="60" placeholder="Ex.: Maria Souza">
+            <div class="err" id="e-nome"></div>
+          </div>
+          <div class="grid2">
+            <div class="field">
+              <label for="f-idade">Idade (anos)</label>
+              <input id="f-idade" inputmode="numeric" placeholder="Ex.: 45">
+              <div class="err" id="e-idade"></div>
+            </div>
+            <div class="field">
+              <label for="f-sexo">Sexo</label>
+              <select id="f-sexo"><option value="">–</option><option>Feminino</option><option>Masculino</option><option>Outro</option></select>
+            </div>
+          </div>
+        </div>
+        <div class="field" style="margin-top:12px">
+          <label for="f-queixa">Queixa principal <span>o que o paciente relata</span></label>
+          <textarea id="f-queixa" maxlength="200" placeholder="Ex.: dor no peito há 30 minutos"></textarea>
+        </div>
+      </div>
+    </section>
+
+    <section class="card step">
+      <div class="step-n">2</div>
+      <div>
+        <h2>Sinais vitais</h2>
+        <div class="grid4">
+          <div class="field">
+            <label for="f-fc">Freq. cardíaca <span>20–250 bpm</span></label>
+            <input id="f-fc" inputmode="numeric" value="80">
+            <div class="err" id="e-fc"></div>
+          </div>
+          <div class="field">
+            <label for="f-sat">Saturação O₂ <span>50–100 %</span></label>
+            <input id="f-sat" inputmode="numeric" value="98">
+            <div class="err" id="e-sat"></div>
+          </div>
+          <div class="field">
+            <label for="f-temp">Temperatura <span>30,0–43,0 °C</span></label>
+            <input id="f-temp" inputmode="decimal" value="36,5">
+            <div class="err" id="e-temp"></div>
+          </div>
+          <div class="field">
+            <label for="f-dor">Dor referida <span>escala 0–10</span></label>
+            <input id="f-dor" inputmode="numeric" value="0">
+            <div class="err" id="e-dor"></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="card step">
+      <div class="step-n">3</div>
+      <div>
+        <h2>Sinais de alerta</h2>
+        <div class="alerts" id="alerts"></div>
+        <p class="note" style="margin-top:10px">Marque o que o paciente apresenta. Um sinal de alerta pode elevar a cor mesmo com sinais vitais normais.</p>
+      </div>
+    </section>
+  </form>
+
+  <aside class="col">
+    <section class="card result" id="result" aria-live="polite">
+      <div class="lbl">Resultado da triagem</div>
+      <div class="big">
+        <div class="dot"></div>
+        <div><h2 id="r-nivel">AZUL</h2><p id="r-tempo"></p></div>
+      </div>
+      <div>
+        <div class="lbl" style="margin-bottom:6px">Motivo da classificação</div>
+        <ul class="why" id="r-why"></ul>
+      </div>
+      <button class="btn" type="submit" form="form">Concluir triagem e enviar para a fila</button>
+      <div class="toast" id="toast" role="status"></div>
+      <div class="ficha" id="ficha"></div>
+      <div class="copy-row" id="copy-row" hidden>
+        <button class="btn ghost" type="button" id="btn-copy">Copiar ficha</button>
+        <button class="btn ghost" type="button" id="btn-new">Nova triagem</button>
+      </div>
+      <p class="note">Ferramenta de estudo. Não substitui o protocolo oficial nem a avaliação do profissional de saúde.</p>
+    </section>
+  </aside>
+
+  <section class="card" style="grid-column:1 / -1">
+    <div class="card-head">
+      <h2>Pacientes triados</h2>
+      <a class="btn ghost" href="fila-hospitalar.html">Abrir a fila de atendimento →</a>
+    </div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Senha</th><th>Hora</th><th>Paciente</th><th>Queixa</th><th>Sinais vitais</th><th>Risco</th><th>Situação</th></tr></thead>
+        <tbody id="tbody"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<script src="sistema.js"></script>
+<script>
+/* Esta tela usa o núcleo comum (sistema.js). Ao concluir a triagem, o
+   paciente recebe a senha e entra direto na fila da tela "Fila e chamada". */
+const S = Sistema;
+const { NOMES_RISCO, DESC_RISCO, TEMPO_MAXIMO, ALERTAS, esc, hora, fmtTemp } = S;
+const $ = id => document.getElementById(id);
+const pill = n => '<span class="pill lv' + n + '">' + NOMES_RISCO[n] + '</span>';
+const tempoTxt = n => n === 5 ? "Atendimento imediato" : "Atender em até " + TEMPO_MAXIMO[n] + " minutos";
+
+/* Alertas na tela */
+$("alerts").innerHTML = ALERTAS.map(([id, txt, n]) =>
+  '<label class="alert lv' + n + '"><input type="checkbox" id="a-' + id + '"><span class="t"><small>' + NOMES_RISCO[n] + '</small>' + esc(txt) + '</span></label>').join("");
+
+function lerCampo(id, min, max, inteiro) {
+  const raw = $(id).value.trim().replace(",", ".");
+  const v = Number(raw);
+  let erro = "";
+  if (raw === "" || Number.isNaN(v)) erro = inteiro ? "Digite um número inteiro." : "Digite um número.";
+  else if (inteiro && !Number.isInteger(v)) erro = "Digite um número inteiro.";
+  else if (v < min || v > max) erro = "Fora da faixa (" + String(min).replace(".", ",") + " a " + String(max).replace(".", ",") + ").";
+  return { v, erro };
+}
+function lerSinais(mostrar) {
+  const c = { fc: lerCampo("f-fc", 20, 250, true), sat: lerCampo("f-sat", 50, 100, true), temp: lerCampo("f-temp", 30, 43, false), dor: lerCampo("f-dor", 0, 10, true) };
+  let ok = true;
+  for (const k in c) {
+    if (c[k].erro) ok = false;
+    if (mostrar || !c[k].erro) { $("e-" + k).textContent = c[k].erro; $("f-" + k).setAttribute("aria-invalid", c[k].erro ? "true" : "false"); }
+  }
+  return { ok, fc: c.fc.v, sat: c.sat.v, temp: c.temp.v, dor: c.dor.v };
+}
+const alertasMarcados = () => ALERTAS.filter(a => $("a-" + a[0]).checked).map(a => a[0]);
+
+function atualizar() {
+  const s = lerSinais(false);
+  const res = $("result");
+  if (!s.ok) {
+    res.className = "card result";
+    $("r-nivel").textContent = "—"; $("r-tempo").textContent = "Corrija os sinais vitais.";
+    $("r-why").innerHTML = ""; return;
+  }
+  const r = S.triar(s, alertasMarcados());
+  res.className = "card result lv" + r.nivel;
+  $("r-nivel").textContent = NOMES_RISCO[r.nivel];
+  $("r-tempo").textContent = DESC_RISCO[r.nivel] + " · " + tempoTxt(r.nivel);
+  $("r-why").innerHTML = r.motivos.length
+    ? r.motivos.map(m => '<li class="lv' + m[0] + '">' + esc(m[1]) + ' → <span class="tag">' + NOMES_RISCO[m[0]].toLowerCase() + '</span></li>').join("")
+    : "<li>Sinais vitais normais e nenhum sinal de alerta</li>";
+}
+
+let ultimaFicha = "", senhaAtual = null;
+function concluir(ev) {
+  ev.preventDefault();
+  const nome = $("f-nome").value.trim();
+  $("e-nome").textContent = nome ? "" : "Informe o nome do paciente.";
+  $("f-nome").setAttribute("aria-invalid", nome ? "false" : "true");
+  let idade = $("f-idade").value.trim(), erroIdade = "";
+  if (idade !== "") { const n = Number(idade); if (!Number.isInteger(n) || n < 0 || n > 120) erroIdade = "Idade de 0 a 120."; }
+  $("e-idade").textContent = erroIdade;
+  const s = lerSinais(true);
+  if (!nome || erroIdade || !s.ok) { $("toast").textContent = "Triagem não concluída: corrija os campos marcados."; return; }
+
+  const r = S.admitir({
+    nome, idade, sexo: $("f-sexo").value, queixa: $("f-queixa").value.trim(),
+    sinais: { fc: s.fc, sat: s.sat, temp: s.temp, dor: s.dor }, alertas: alertasMarcados(), origem: "triagem"
+  });
+  if (!r.ok) { $("toast").textContent = r.erro + " Paciente não entrou na fila."; return; }
+  const t = r.paciente;
+  senhaAtual = t.senha;
+
+  $("toast").textContent = "";
+  $("ficha").innerHTML =
+    '<div class="row"><b>Senha ' + t.senha + '</b><span class="num">' + hora(t.chegada) + '</span></div>' +
+    '<div class="row"><span>Paciente</span><span>' + esc(nome) + (idade ? ", " + idade + " anos" : "") + (t.sexo ? " · " + t.sexo : "") + '</span></div>' +
+    (t.queixa ? '<div class="row"><span>Queixa</span><span>' + esc(t.queixa) + '</span></div>' : "") +
+    '<div class="row"><span>Vitais</span><span class="num">' + s.fc + ' bpm · ' + s.sat + '% · ' + fmtTemp(s.temp) + ' °C · dor ' + s.dor + '</span></div>' +
+    '<div class="row"><span>Classificação</span><span>' + pill(t.risco) + '</span></div>' +
+    '<div class="row"><span>Na fila</span><span id="ficha-sit"></span></div>';
+  ultimaFicha = "FICHA DE TRIAGEM - SENHA " + t.senha + " - " + hora(t.chegada) + "\n" +
+    "Paciente: " + nome + (idade ? ", " + idade + " anos" : "") + (t.sexo ? " - " + t.sexo : "") + "\n" +
+    (t.queixa ? "Queixa: " + t.queixa + "\n" : "") +
+    "Sinais vitais: FC " + s.fc + " bpm, SpO2 " + s.sat + "%, Temp " + fmtTemp(s.temp) + " C, Dor " + s.dor + "/10\n" +
+    (t.alertas.length ? "Sinais de alerta: " + t.alertas.join(", ") + "\n" : "") +
+    "Classificação: " + NOMES_RISCO[t.risco] + " (" + DESC_RISCO[t.risco] + ") - " + tempoTxt(t.risco) + "\n" +
+    "Motivos: " + (t.motivos.length ? t.motivos.join("; ") : "nenhum achado alterado");
+  $("copy-row").hidden = false;
+  render();
+}
+
+function novaTriagem() {
+  $("form").reset();
+  $("f-fc").value = "80"; $("f-sat").value = "98"; $("f-temp").value = "36,5"; $("f-dor").value = "0";
+  $("ficha").innerHTML = ""; $("copy-row").hidden = true; $("toast").textContent = ""; senhaAtual = null;
+  document.querySelectorAll("[aria-invalid]").forEach(e => e.setAttribute("aria-invalid", "false"));
+  document.querySelectorAll(".err").forEach(e => e.textContent = "");
+  atualizar(); $("f-nome").focus();
+}
+
+async function copiar() {
+  try { await navigator.clipboard.writeText(ultimaFicha); $("toast").textContent = "Ficha copiada."; }
+  catch (e) { $("toast").textContent = "Não foi possível copiar automaticamente. Selecione o texto da ficha e copie."; }
+}
+
+function txtSituacao(e, senha) {
+  const sit = S.situacao(e, senha);
+  if (sit.estado === "aguardando") return '<span class="sit wait">Aguardando · ' + sit.posicao + 'º da fila</span>';
+  if (sit.estado === "chamado") return '<span class="sit done">Chamado às ' + hora(sit.paciente.chamada) + ' · consultório ' + (sit.paciente.consultorio || 1) + '</span>';
+  return '<span class="sit">–</span>';
+}
+
+/* A tabela mostra todos os pacientes do sistema e a situação de cada um na fila. */
+function render() {
+  const e = S.estado();
+  const regs = e.registros;
+  const cont = {1:0,2:0,3:0,4:0,5:0};
+  regs.forEach(t => cont[t.risco]++);
+  $("counts").innerHTML = [5,4,3,2,1].map(n => '<span class="count lv' + n + '"><b>' + cont[n] + '</b>' + NOMES_RISCO[n].toLowerCase() + '</span>').join("");
+  $("tbody").innerHTML = regs.length ? regs.map(t =>
+    '<tr><td class="num"><b>' + t.senha + '</b></td><td class="num">' + hora(t.chegada) + '</td>' +
+    '<td>' + esc(t.nome) + (t.idade ? '<br><small style="color:var(--muted)">' + esc(t.idade) + ' anos</small>' : "") + '</td>' +
+    '<td class="q">' + (t.queixa ? esc(t.queixa) : "–") + (t.alertas.length ? '<br><small>Alerta: ' + esc(t.alertas.join(", ")) + '</small>' : "") + '</td>' +
+    '<td class="num" style="white-space:nowrap">' + t.sinais.fc + ' bpm · ' + t.sinais.sat + '%<br>' + fmtTemp(t.sinais.temp) + ' °C · dor ' + t.sinais.dor + '</td>' +
+    '<td>' + pill(t.risco) + '</td><td>' + txtSituacao(e, t.senha) + '</td></tr>').join("")
+    : '<tr><td colspan="7" class="empty">Nenhum paciente triado ainda.</td></tr>';
+  if (senhaAtual !== null && $("ficha-sit")) $("ficha-sit").innerHTML = txtSituacao(e, senhaAtual);
+}
+
+$("form").addEventListener("submit", concluir);
+$("form").addEventListener("input", atualizar);
+$("form").addEventListener("change", atualizar);
+$("btn-new").addEventListener("click", novaTriagem);
+$("btn-copy").addEventListener("click", copiar);
+
+S.nav("triagem.html");
+S.aoMudar(render);   // atualiza a situação quando a fila chama alguém
+if (S.estado().senha === 1) S.carregarExemplo();
+atualizar(); render();
+</script>
+</body>
+</html>

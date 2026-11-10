@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Fila Hospitalar</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Barlow+Semi+Condensed:wght@500;600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
+<style>
+/* Plano: painel de triagem de pronto-socorro. Coluna esquerda = admissão; direita = chamada + fila + baldes FIFO. */
+:root {
+  --bg: #eef2f4;
+  --surface: #ffffff;
+  --ink: #15232b;
+  --muted: #5b6c76;
+  --line: #d5dee3;
+  --accent: #0b6e8a;
+  --accent-ink: #ffffff;
+  --soft: #e3edf1;
+
+  --r5: #c8102e; --r5-bg: #fbe5e8;
+  --r4: #e8590c; --r4-bg: #fdeadf;
+  --r3: #d9a400; --r3-bg: #fbf3d3;
+  --r2: #2b8a3e; --r2-bg: #e2f2e5;
+  --r1: #1c64c4; --r1-bg: #e1ebf9;
+
+  --ok: #2b8a3e; --warn: #b7791f; --crit: #c8102e;
+
+  --f-display: "Barlow Semi Condensed", "Arial Narrow", sans-serif;
+  --f-body: "Atkinson Hyperlegible", "Segoe UI", Arial, sans-serif;
+  --f-mono: "JetBrains Mono", Consolas, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e171c; --surface: #162229; --ink: #e4ecef; --muted: #93a6b0;
+    --line: #2a3a43; --accent: #3fb3d3; --accent-ink: #06222b; --soft: #1d2d35;
+    --r5: #ff5c6f; --r5-bg: #3a1a20; --r4: #ff8a45; --r4-bg: #3a2416;
+    --r3: #f2c53d; --r3-bg: #352d12; --r2: #5cc56f; --r2-bg: #17301c;
+    --r1: #6aa5ff; --r1-bg: #172740;
+    --ok: #5cc56f; --warn: #f2c53d; --crit: #ff5c6f;
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e171c; --surface: #162229; --ink: #e4ecef; --muted: #93a6b0;
+  --line: #2a3a43; --accent: #3fb3d3; --accent-ink: #06222b; --soft: #1d2d35;
+  --r5: #ff5c6f; --r5-bg: #3a1a20; --r4: #ff8a45; --r4-bg: #3a2416;
+  --r3: #f2c53d; --r3-bg: #352d12; --r2: #5cc56f; --r2-bg: #17301c;
+  --r1: #6aa5ff; --r1-bg: #172740;
+  --ok: #5cc56f; --warn: #f2c53d; --crit: #ff5c6f;
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+html, body { margin: 0; }
+body {
+  background: var(--bg); color: var(--ink);
+  font-family: var(--f-body); font-size: 15px; line-height: 1.45;
+}
+h1, h2, h3 { font-family: var(--f-display); margin: 0; text-wrap: balance; letter-spacing: .01em; }
+.num { font-family: var(--f-mono); font-variant-numeric: tabular-nums; }
+button, input { font: inherit; color: inherit; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+/* Cabeçalho */
+header {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px;
+  padding: 14px 20px; background: var(--surface); border-bottom: 1px solid var(--line);
+}
+.brand { display: flex; align-items: center; gap: 10px; margin-right: auto; }
+.brand svg { flex: none; }
+.brand h1 { font-size: 24px; font-weight: 700; }
+.brand small { display: block; color: var(--muted); font-size: 12.5px; font-family: var(--f-body); }
+.stats { display: flex; flex-wrap: wrap; gap: 8px; }
+.stat {
+  display: flex; flex-direction: column; padding: 6px 14px; border-radius: 8px;
+  background: var(--soft); min-width: 104px;
+}
+.stat b { font-family: var(--f-mono); font-size: 20px; line-height: 1.2; }
+.stat span { font-size: 12px; color: var(--muted); }
+.stat.alert b { color: var(--crit); }
+
+main {
+  display: grid; grid-template-columns: minmax(300px, 380px) 1fr; gap: 18px;
+  padding: 18px 20px 28px; max-width: 1440px; margin: 0 auto;
+}
+@media (max-width: 920px) { main { grid-template-columns: 1fr; padding: 14px 16px 24px; } }
+.col { display: grid; gap: 18px; align-content: start; min-width: 0; }
+.card { background: var(--surface); border: 1px solid var(--line); border-radius: 12px; padding: 16px 18px; min-width: 0; }
+.card-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; margin-bottom: 12px; }
+.card-head h2 { font-size: 20px; font-weight: 600; }
+.card-head p { margin: 0; color: var(--muted); font-size: 13px; }
+
+/* Formulário */
+form { display: grid; gap: 12px; }
+.field { display: grid; gap: 4px; }
+.field label { font-weight: 700; font-size: 13.5px; display: flex; flex-direction: column; gap: 0; }
+.field label span { font-weight: 400; color: var(--muted); font-size: 12.5px; }
+.field input {
+  width: 100%; padding: 9px 11px; border: 1px solid var(--line); border-radius: 8px;
+  background: var(--bg);
+}
+.field input[aria-invalid="true"] { border-color: var(--crit); }
+.vitals { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.err { color: var(--crit); font-size: 12.5px; min-height: 0; }
+.err:empty { display: none; }
+
+.preview {
+  border-radius: 10px; padding: 12px 14px; border-left: 6px solid var(--line); background: var(--soft);
+  display: grid; gap: 6px;
+}
+.preview .lvl { font-family: var(--f-display); font-size: 22px; font-weight: 700; }
+.preview ul { margin: 0; padding-left: 18px; font-size: 13px; color: var(--muted); }
+.preview .target { font-size: 13px; }
+
+.btn {
+  border: 0; border-radius: 9px; padding: 11px 16px; font-weight: 700; cursor: pointer;
+  background: var(--accent); color: var(--accent-ink);
+}
+.btn:hover { filter: brightness(1.08); }
+.btn:disabled { opacity: .45; cursor: not-allowed; filter: none; }
+.btn.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); font-weight: 400; padding: 7px 12px; font-size: 13px; }
+.btn.ghost:hover { background: var(--soft); filter: none; }
+.btn.big { font-size: 17px; padding: 14px 22px; }
+
+.toast { font-size: 13.5px; padding: 9px 12px; border-radius: 8px; background: var(--soft); }
+.toast:empty { display: none; }
+
+/* Painel de chamada */
+.call { display: grid; grid-template-columns: 1fr auto; gap: 16px; align-items: center; }
+@media (max-width: 560px) { .call { grid-template-columns: 1fr; } }
+.screen {
+  border-radius: 10px; padding: 14px 18px; background: var(--soft); border-left: 8px solid var(--line);
+  display: grid; gap: 2px; min-height: 96px; align-content: center;
+}
+.screen .lbl { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: .08em; }
+.screen .who { font-family: var(--f-display); font-size: 30px; font-weight: 700; line-height: 1.1; overflow-wrap: anywhere; }
+.screen .meta { font-size: 13.5px; color: var(--muted); }
+.next-line { font-size: 13.5px; color: var(--muted); margin-top: 10px; }
+.next-line b { color: var(--ink); }
+
+/* Pílula de risco */
+.pill {
+  display: inline-flex; align-items: center; gap: 6px; padding: 2px 10px 2px 8px; border-radius: 999px;
+  font-size: 12.5px; font-weight: 700; letter-spacing: .03em; white-space: nowrap;
+}
+.pill::before { content: ""; width: 9px; height: 9px; border-radius: 50%; background: currentColor; }
+.lv5 { --c: var(--r5); --cb: var(--r5-bg); }
+.lv4 { --c: var(--r4); --cb: var(--r4-bg); }
+.lv3 { --c: var(--r3); --cb: var(--r3-bg); }
+.lv2 { --c: var(--r2); --cb: var(--r2-bg); }
+.lv1 { --c: var(--r1); --cb: var(--r1-bg); }
+.pill.lvx { color: var(--c); background: var(--cb); }
+.preview.lvx, .screen.lvx { border-left-color: var(--c); background: var(--cb); }
+.preview.lvx .lvl { color: var(--c); }
+
+/* Tabela */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 14px; }
+th { text-align: left; font-size: 12px; color: var(--muted); font-weight: 700; text-transform: uppercase; letter-spacing: .05em; padding: 6px 10px; border-bottom: 1px solid var(--line); white-space: nowrap; }
+td { padding: 9px 10px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+tr:last-child td { border-bottom: 0; }
+td.r, th.r { text-align: right; }
+td.name { overflow-wrap: anywhere; min-width: 140px; }
+tr.first td { background: var(--soft); }
+tr.first td:first-child { box-shadow: inset 4px 0 0 var(--accent); }
+.wait { display: grid; gap: 4px; min-width: 120px; }
+.bar { height: 5px; border-radius: 3px; background: var(--line); overflow: hidden; }
+.bar i { display: block; height: 100%; background: var(--ok); }
+.wait.warn .bar i { background: var(--warn); }
+.wait.crit .bar i { background: var(--crit); }
+.wait small { font-size: 12px; color: var(--muted); }
+.wait.crit small { color: var(--crit); font-weight: 700; }
+.empty { color: var(--muted); padding: 18px 4px; text-align: center; }
+
+/* Baldes FIFO */
+.lanes { display: grid; gap: 8px; }
+.lane { display: grid; grid-template-columns: 180px 1fr; gap: 10px; align-items: center; }
+@media (max-width: 480px) { .lane { grid-template-columns: 1fr; gap: 4px; } }
+.lane-name { display: flex; justify-content: space-between; align-items: center; gap: 6px; font-size: 13px; }
+.lane-name b { color: var(--c); font-family: var(--f-display); font-size: 16px; }
+.lane-name .num { color: var(--muted); font-size: 12px; }
+.track {
+  display: flex; align-items: center; gap: 6px; min-height: 40px; padding: 6px 8px; border-radius: 8px;
+  background: var(--cb); overflow-x: auto; border: 1px dashed transparent;
+}
+.track .end { font-size: 11px; color: var(--muted); white-space: nowrap; }
+.chip {
+  flex: none; font-family: var(--f-mono); font-size: 12.5px; padding: 4px 8px; border-radius: 6px;
+  background: var(--surface); border: 1px solid var(--c); color: var(--ink);
+}
+.chip.head { background: var(--c); color: #fff; border-color: var(--c); font-weight: 600; }
+.legend { font-size: 12.5px; color: var(--muted); margin: 10px 0 0; }
+
+/* Histórico */
+.hist { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; max-height: 260px; overflow-y: auto; }
+.hist li { display: flex; align-items: center; gap: 10px; font-size: 13.5px; padding: 6px 0; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.hist li:last-child { border-bottom: 0; }
+.hist .num { color: var(--muted); font-size: 12.5px; }
+.hist .grow { flex: 1; min-width: 100px; overflow-wrap: anywhere; }
+
+/* Regras */
+.rules { display: grid; gap: 6px; font-size: 13px; }
+.rules table td, .rules table th { padding: 6px 5px; font-size: 12.5px; letter-spacing: 0; }
+.footer-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+
+/* Diálogo próprio (confirm() é bloqueado no frame) */
+.modal { position: fixed; inset: 0; background: rgb(0 0 0 / .45); display: none; align-items: center; justify-content: center; padding: 16px; z-index: 10; }
+.modal.open { display: flex; }
+.modal .box { background: var(--surface); border-radius: 12px; padding: 20px; max-width: 380px; width: 100%; display: grid; gap: 14px; border: 1px solid var(--line); }
+.modal .row { display: flex; justify-content: flex-end; gap: 8px; }
+.btn.danger { background: var(--crit); color: #fff; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .flash { animation: flash .9s ease-out; }
+  @keyframes flash { from { box-shadow: 0 0 0 6px var(--c, var(--accent)); } to { box-shadow: 0 0 0 0 transparent; } }
+}
+/* Integração com as outras telas */
+tbody tr.novo td { animation: novo 2.5s ease-out; }
+@keyframes novo { from { background: var(--soft); } to { background: transparent; } }
+small.via { font-size: 11px; color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 0 6px; font-weight: 700; }
+small.q { color: var(--muted); font-size: 12.5px; }
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><rect width="34" height="34" rx="8" fill="var(--accent)"/><path d="M14 8h6v6h6v6h-6v6h-6v-6H8v-6h6z" fill="var(--accent-ink)"/></svg>
+    <div>
+      <h1>Fila Hospitalar</h1>
+      <small>Triagem por classificação de risco · Gabriel Roberto Marinho Da Silva Reis</small>
+    </div>
+  </div>
+  <div class="stats" aria-live="polite">
+    <div class="stat"><b class="num" id="st-total">0</b><span>aguardando</span></div>
+    <div class="stat" id="st-late-box"><b class="num" id="st-late">0</b><span>acima do tempo-alvo</span></div>
+    <div class="stat"><b class="num" id="st-called">0</b><span>atendidos</span></div>
+    <div class="stat"><b class="num" id="st-senha">1</b><span>próxima senha</span></div>
+  </div>
+</header>
+
+<main>
+  <div class="col">
+    <section class="card" aria-labelledby="h-adm">
+      <div class="card-head"><h2 id="h-adm">Admitir paciente</h2><p>Opção 1</p></div>
+      <form id="form" novalidate>
+        <div class="field">
+          <label for="f-nome">Nome do paciente</label>
+          <input id="f-nome" autocomplete="off" maxlength="60" placeholder="Ex.: Maria Souza">
+          <div class="err" id="e-nome"></div>
+        </div>
+        <div class="vitals">
+          <div class="field">
+            <label for="f-fc">Freq. cardíaca <span>20–250 bpm</span></label>
+            <input id="f-fc" inputmode="numeric" value="80">
+            <div class="err" id="e-fc"></div>
+          </div>
+          <div class="field">
+            <label for="f-sat">Saturação O₂ <span>50–100 %</span></label>
+            <input id="f-sat" inputmode="numeric" value="98">
+            <div class="err" id="e-sat"></div>
+          </div>
+          <div class="field">
+            <label for="f-temp">Temperatura <span>30,0–43,0 °C</span></label>
+            <input id="f-temp" inputmode="decimal" value="36,5">
+            <div class="err" id="e-temp"></div>
+          </div>
+          <div class="field">
+            <label for="f-dor">Dor referida <span>0–10</span></label>
+            <input id="f-dor" inputmode="numeric" value="0">
+            <div class="err" id="e-dor"></div>
+          </div>
+        </div>
+
+        <div class="preview" id="preview" aria-live="polite">
+          <div class="lbl" style="font-size:12px;color:var(--muted)">Classificação prévia</div>
+          <div class="lvl" id="pv-lvl">AZUL</div>
+          <div class="target" id="pv-target"></div>
+          <ul id="pv-why"></ul>
+        </div>
+
+        <button class="btn" type="submit" id="btn-adm">Admitir e gerar senha</button>
+        <div class="toast" id="toast" role="status"></div>
+      </form>
+    </section>
+
+    <section class="card" aria-labelledby="h-rules">
+      <div class="card-head"><h2 id="h-rules">Critérios de risco</h2></div>
+      <div class="rules">
+        <p style="margin:0;color:var(--muted)">Cada sinal é avaliado sozinho; vale o nível mais grave entre eles.</p>
+        <div class="table-wrap">
+          <table>
+            <thead><tr><th>Sinal</th><th>Vermelho</th><th>Laranja</th><th>Amarelo</th><th>Verde</th></tr></thead>
+            <tbody>
+              <tr><td>FC (bpm)</td><td>&gt;150 ou &lt;40</td><td>&gt;120</td><td>&gt;100</td><td>–</td></tr>
+              <tr><td>SpO₂ (%)</td><td>&lt;85</td><td>&lt;90</td><td>&lt;94</td><td>–</td></tr>
+              <tr><td>Temp. (°C)</td><td>≥39,5 ou ≤35</td><td>–</td><td>≥38,5</td><td>≥37,8</td></tr>
+              <tr><td>Dor (0–10)</td><td>–</td><td>≥9</td><td>≥6</td><td>≥4</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <div class="col">
+    <section class="card" aria-labelledby="h-call">
+      <div class="card-head"><h2 id="h-call">Chamada</h2><p>Opção 2</p></div>
+      <div class="call">
+        <div class="screen" id="screen" aria-live="assertive">
+          <div class="lbl">Último chamado</div>
+          <div class="who" id="sc-who">Nenhum paciente chamado</div>
+          <div class="meta" id="sc-meta">Clique em “Chamar próximo” para iniciar o atendimento.</div>
+        </div>
+        <div style="display:grid;gap:8px">
+          <label for="f-cons" style="font-size:12.5px;color:var(--muted)">Consultório</label>
+          <select id="f-cons" style="font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)">
+            <option value="1">Consultório 1</option><option value="2">Consultório 2</option><option value="3">Consultório 3</option>
+          </select>
+          <button class="btn big" id="btn-next">Chamar próximo</button>
+          <button class="btn ghost" id="btn-again" type="button">Chamar de novo no painel</button>
+        </div>
+      </div>
+      <div class="next-line" id="next-line"></div>
+    </section>
+
+    <section class="card" aria-labelledby="h-queue">
+      <div class="card-head"><h2 id="h-queue">Ordem de atendimento</h2><p>Opção 3 · gravidade primeiro, depois ordem de chegada</p></div>
+      <div class="table-wrap">
+        <table>
+          <thead><tr><th class="r">Ordem</th><th class="r">Senha</th><th>Nome</th><th>Risco</th><th>Chegada</th><th>Espera / alvo</th></tr></thead>
+          <tbody id="tbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section class="card" aria-labelledby="h-lanes">
+      <div class="card-head"><h2 id="h-lanes">Resumo por nível · baldes FIFO</h2><p>Opção 4</p></div>
+      <div class="lanes" id="lanes"></div>
+      <p class="legend">Cada linha é uma fila FIFO (capacidade 100). Entra pelo fim, sai pela frente. A chamada varre do vermelho ao azul e retira o primeiro do primeiro balde não vazio; o chip destacado é o próximo.</p>
+    </section>
+
+    <section class="card" aria-labelledby="h-hist">
+      <div class="card-head"><h2 id="h-hist">Atendidos</h2>
+        <div class="footer-actions">
+          <button class="btn ghost" id="btn-demo">Carregar exemplo</button>
+          <button class="btn ghost" id="btn-reset">Zerar sistema</button>
+        </div>
+      </div>
+      <ul class="hist" id="hist"></ul>
+    </section>
+  </div>
+</main>
+
+<div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="m-title">
+  <div class="box">
+    <h3 id="m-title" style="font-size:20px">Zerar o sistema?</h3>
+    <p style="margin:0;color:var(--muted)">A fila, o histórico, as triagens e a contagem de senhas voltam ao início em todas as telas. Não dá para desfazer.</p>
+    <div class="row">
+      <button class="btn ghost" id="m-cancel">Cancelar</button>
+      <button class="btn danger" id="m-ok">Zerar</button>
+    </div>
+  </div>
+</div>
+
+<script src="sistema.js"></script>
+<script>
+/* Esta tela usa o núcleo comum (sistema.js). Tudo o que ela grava aparece
+   na triagem e no painel da TV, e o que a triagem admite aparece aqui. */
+const S = Sistema;
+const { NIVEIS, CAPACIDADE, NOMES_RISCO, TEMPO_MAXIMO, esc, hora, minutos, fmtDur } = S;
+const $ = id => document.getElementById(id);
+const pill = n => '<span class="pill lvx lv' + n + '">' + NOMES_RISCO[n] + '</span>';
+
+/* ===== Leitura do formulário (equivale a ler_inteiro / ler_decimal) ===== */
+function lerCampo(id, min, max, inteiro) {
+  const raw = $(id).value.trim().replace(",", ".");
+  const v = Number(raw);
+  let erro = "";
+  if (raw === "" || Number.isNaN(v)) erro = inteiro ? "Digite um número inteiro." : "Digite um número.";
+  else if (inteiro && !Number.isInteger(v)) erro = "Digite um número inteiro.";
+  else if (v < min || v > max) erro = "Fora da faixa (" + String(min).replace(".", ",") + " a " + String(max).replace(".", ",") + ").";
+  return { v, erro };
+}
+function lerSinais(mostrarErros) {
+  const campos = {
+    fc: lerCampo("f-fc", 20, 250, true),
+    sat: lerCampo("f-sat", 50, 100, true),
+    temp: lerCampo("f-temp", 30.0, 43.0, false),
+    dor: lerCampo("f-dor", 0, 10, true)
+  };
+  let ok = true;
+  for (const k in campos) {
+    if (campos[k].erro) ok = false;
+    if (mostrarErros || !campos[k].erro) {
+      $("e-" + k).textContent = campos[k].erro;
+      $("f-" + k).setAttribute("aria-invalid", campos[k].erro ? "true" : "false");
+    }
+  }
+  return { ok, fc: campos.fc.v, sat: campos.sat.v, temp: campos.temp.v, dor: campos.dor.v };
+}
+
+function atualizarPrevia() {
+  const s = lerSinais(false);
+  const pv = $("preview");
+  pv.className = "preview";
+  if (!s.ok) {
+    $("pv-lvl").textContent = "—";
+    $("pv-target").textContent = "Corrija os sinais vitais para ver a classificação.";
+    $("pv-why").innerHTML = "";
+    return;
+  }
+  const r = S.classificarRisco(s.fc, s.sat, s.temp, s.dor);
+  pv.className = "preview lvx lv" + r.nivel;
+  $("pv-lvl").textContent = NOMES_RISCO[r.nivel];
+  $("pv-target").textContent = r.nivel === 5 ? "Atendimento imediato" : "Tempo máximo de espera: " + TEMPO_MAXIMO[r.nivel] + " minutos";
+  $("pv-why").innerHTML = r.motivos.length
+    ? r.motivos.sort((a, b) => b[0] - a[0]).map(m => "<li>" + esc(m[1]) + " → " + NOMES_RISCO[m[0]].toLowerCase() + "</li>").join("")
+    : "<li>Todos os sinais dentro da normalidade</li>";
+}
+
+function toast(html) { $("toast").innerHTML = html; }
+
+/* ===== Ações ===== */
+function admitir(ev) {
+  ev.preventDefault();
+  const nome = $("f-nome").value.trim();
+  $("e-nome").textContent = nome ? "" : "Nome não pode ser vazio.";
+  $("f-nome").setAttribute("aria-invalid", nome ? "false" : "true");
+  const s = lerSinais(true);
+  if (!nome || !s.ok) { toast("Admissão não realizada: corrija os campos marcados."); return; }
+
+  const r = S.admitir({ nome, sinais: { fc: s.fc, sat: s.sat, temp: s.temp, dor: s.dor }, origem: "recepção" });
+  if (!r.ok) { toast(r.erro + " Admissão recusada."); return; }
+  toast("Senha <b class='num'>" + r.paciente.senha + "</b> · " + esc(nome) + " · " + pill(r.paciente.risco));
+  $("f-nome").value = ""; $("f-fc").value = "80"; $("f-sat").value = "98"; $("f-temp").value = "36,5"; $("f-dor").value = "0";
+  $("f-nome").focus();
+  atualizarPrevia();
+}
+
+function chamarProximo() {
+  const p = S.chamarProximo(Number($("f-cons").value));
+  if (!p) { $("next-line").textContent = "Não há pacientes aguardando."; return; }
+  const sc = $("screen");
+  sc.classList.remove("flash"); void sc.offsetWidth; sc.classList.add("flash");
+}
+
+/* ===== Renderização ===== */
+let senhaVista = null;
+function render() {
+  const e = S.estado();
+  const fila = e.fila, historico = e.historico, ultimo = e.ultimo;
+  const agora = Date.now();
+  const ordem = fila.ordem();
+  let atrasados = 0;
+
+  $("tbody").innerHTML = ordem.length ? ordem.map((p, i) => {
+    const esperou = minutos(agora - p.chegada);
+    const alvo = TEMPO_MAXIMO[p.risco];
+    let cls = "", pct, txt;
+    if (alvo === 0) { cls = "crit"; pct = 100; txt = "imediato · " + fmtDur(esperou); atrasados++; }
+    else {
+      pct = Math.min(100, esperou / alvo * 100);
+      if (esperou > alvo) { cls = "crit"; atrasados++; txt = fmtDur(esperou) + " · " + fmtDur(esperou - alvo) + " acima"; }
+      else { if (pct >= 75) cls = "warn"; txt = fmtDur(esperou) + " de " + fmtDur(alvo); }
+    }
+    const novo = p.senha > (senhaVista || 0) && senhaVista !== null;
+    return '<tr class="' + (i === 0 ? "first" : "") + (novo ? " novo" : "") + '">' +
+      '<td class="r num">' + (i + 1) + '</td>' +
+      '<td class="r num"><b>' + p.senha + '</b></td>' +
+      '<td class="name">' + esc(p.nome) + (p.origem === "triagem" ? ' <small class="via">via triagem</small>' : "") +
+        (p.queixa ? '<br><small class="q">' + esc(p.queixa) + '</small>' : "") + '</td>' +
+      '<td>' + pill(p.risco) + '</td>' +
+      '<td class="num">' + hora(p.chegada) + '</td>' +
+      '<td><div class="wait ' + cls + '"><div class="bar"><i style="width:' + pct.toFixed(0) + '%"></i></div><small>' + txt + '</small></div></td>' +
+      '</tr>';
+  }).join("") : '<tr><td colspan="6" class="empty">Não há pacientes aguardando.</td></tr>';
+  senhaVista = e.senha - 1;
+
+  // Baldes
+  const [okE, prox] = fila.espiar();
+  let lanes = "";
+  for (let n = NIVEIS; n >= 1; n--) {
+    const b = fila.baldes[n];
+    const chips = b.itens.map(p =>
+      '<span class="chip' + (okE && prox.senha === p.senha ? " head" : "") + '" title="' + esc(p.nome) + '">#' + p.senha + '</span>').join("");
+    lanes += '<div class="lane lv' + n + '">' +
+      '<div class="lane-name"><b>' + NOMES_RISCO[n] + '</b><span class="num">' + b.tamanho() + '/' + CAPACIDADE + ' · ' + (n === 5 ? "0" : TEMPO_MAXIMO[n]) + 'min</span></div>' +
+      '<div class="track">' + (b.vazia() ? '<span class="end">vazio</span>' : '<span class="end">frente →</span>' + chips + '<span class="end">← fim</span>') + '</div>' +
+      '</div>';
+  }
+  $("lanes").innerHTML = lanes;
+
+  // Último chamado (o mesmo que aparece no painel da TV)
+  const sc = $("screen");
+  if (ultimo) {
+    sc.className = "screen lvx lv" + ultimo.risco + (sc.classList.contains("flash") ? " flash" : "");
+    $("sc-who").innerHTML = "Senha " + ultimo.senha + " · " + esc(ultimo.nome);
+    $("sc-meta").innerHTML = NOMES_RISCO[ultimo.risco] + " · consultório " + (ultimo.consultorio || 1) + " · chamado às " + hora(ultimo.chamada) +
+      " após " + fmtDur(minutos(ultimo.chamada - ultimo.chegada)) + " de espera";
+  } else {
+    sc.className = "screen";
+    $("sc-who").textContent = "Nenhum paciente chamado";
+    $("sc-meta").textContent = "Clique em “Chamar próximo” para iniciar o atendimento.";
+  }
+  $("next-line").innerHTML = okE
+    ? "Próximo a ser chamado: <b>senha " + prox.senha + " · " + esc(prox.nome) + "</b> " + pill(prox.risco)
+    : "Nenhum paciente aguardando.";
+  $("btn-next").disabled = !okE;
+  $("btn-again").disabled = !ultimo;
+
+  // Histórico
+  $("hist").innerHTML = historico.length ? historico.map(p =>
+    '<li><span class="num">' + hora(p.chamada) + '</span><b class="num">#' + p.senha + '</b><span class="grow">' + esc(p.nome) + '</span>' + pill(p.risco) +
+    '<span class="num">C' + (p.consultorio || 1) + ' · esperou ' + fmtDur(minutos(p.chamada - p.chegada)) + '</span></li>').join("")
+    : '<li class="empty" style="justify-content:center;border:0">Ninguém foi chamado ainda.</li>';
+
+  // Cabeçalho
+  $("st-total").textContent = fila.total();
+  $("st-late").textContent = atrasados;
+  $("st-late-box").classList.toggle("alert", atrasados > 0);
+  $("st-called").textContent = historico.length;
+  $("st-senha").textContent = e.senha;
+}
+
+/* ===== Eventos ===== */
+$("form").addEventListener("submit", admitir);
+["f-fc", "f-sat", "f-temp", "f-dor"].forEach(id => $(id).addEventListener("input", atualizarPrevia));
+$("btn-next").addEventListener("click", chamarProximo);
+$("btn-again").addEventListener("click", () => S.rechamar());
+$("btn-demo").addEventListener("click", () => { S.carregarExemplo(); toast("Exemplo carregado: 7 pacientes com chegadas fictícias."); });
+$("btn-reset").addEventListener("click", () => { $("modal").classList.add("open"); $("m-cancel").focus(); });
+$("m-cancel").addEventListener("click", () => $("modal").classList.remove("open"));
+$("m-ok").addEventListener("click", () => { $("modal").classList.remove("open"); S.zerar(); toast(""); });
+document.addEventListener("keydown", e => { if (e.key === "Escape") $("modal").classList.remove("open"); });
+
+S.nav("fila-hospitalar.html");
+S.aoMudar(render);   // atualiza quando a triagem admite ou outra aba chama
+if (S.estado().senha === 1) S.carregarExemplo();
+atualizarPrevia();
+render();
+setInterval(render, 30000);
+</script>
+</body>
+</html>

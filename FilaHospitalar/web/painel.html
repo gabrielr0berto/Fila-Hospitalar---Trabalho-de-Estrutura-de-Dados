@@ -82,6 +82,7 @@ body { background: var(--bg); color: var(--ink); font-family: var(--f-body); dis
   <h1><svg width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><rect width="34" height="34" rx="8" fill="#3fb3d3"/><path d="M14 8h6v6h6v6h-6v6h-6v-6H8v-6h6z" fill="#06222b"/></svg>Pronto-socorro · Chamada</h1>
   <div class="tools">
     <button type="button" id="btn-som" aria-pressed="false">Som desligado</button>
+    <button type="button" id="btn-teste">Testar voz</button>
     <button type="button" id="btn-full">Tela cheia</button>
   </div>
   <span class="clock" id="clock">--:--</span>
@@ -104,10 +105,10 @@ body { background: var(--bg); color: var(--ink); font-family: var(--f-body); dis
 
 <div class="sound" id="sound">
   <div class="box">
-    <h3>Ativar o aviso sonoro?</h3>
-    <p>O navegador só toca som depois de um clique. Com o som ativado, cada chamada toca um aviso.</p>
+    <h3>Ativar o som e a voz?</h3>
+    <p>O navegador só toca som depois de um clique. Com o som ativado, cada chamada toca um aviso e uma voz anuncia a senha, o nome e o consultório.</p>
     <div class="row">
-      <button type="button" id="s-on">Ativar som</button>
+      <button type="button" id="s-on">Ativar som e voz</button>
       <button type="button" class="ghost" id="s-off">Sem som</button>
     </div>
   </div>
@@ -142,12 +143,45 @@ function bip() {
     });
   } catch (e) {}
 }
+/* ===== Voz: anuncia a chamada em português (Web Speech API do navegador) ===== */
+let voz = null;
+function escolherVoz() {
+  if (!("speechSynthesis" in window)) return;
+  const vs = speechSynthesis.getVoices().filter(v => /^pt/i.test(v.lang));
+  // Prefere português do Brasil; entre elas, as vozes "naturais" ou do Google soam melhor
+  const br = vs.filter(v => /pt[-_]BR/i.test(v.lang));
+  const lista = br.length ? br : vs;
+  voz = lista.find(v => /natural|online|google/i.test(v.name)) || lista[0] || null;
+}
+if ("speechSynthesis" in window) { escolherVoz(); speechSynthesis.onvoiceschanged = escolherVoz; }
+
+const NUM = ["zero","um","dois","três","quatro","cinco","seis","sete","oito","nove","dez"];
+function nomeFalado(n) {
+  const p = String(n).trim().split(/\s+/);
+  return p.length > 1 ? p[0] + " " + p[p.length - 1] : p[0];
+}
+function falar(p) {
+  if (!somLigado || !("speechSynthesis" in window) || !p) return;
+  const cons = p.consultorio || 1;
+  const texto = "Senha " + p.senha + ". " + nomeFalado(p.nome) + ". Dirija-se ao consultório " + (NUM[cons] || cons) + ".";
+  speechSynthesis.cancel();
+  // Fala duas vezes, como nos painéis de pronto-socorro
+  setTimeout(() => {   // espera o aviso sonoro terminar
+    [texto, texto].forEach(t => {
+      const u = new SpeechSynthesisUtterance(t);
+      u.lang = "pt-BR"; if (voz) u.voice = voz;
+      u.rate = 0.92; u.pitch = 1; u.volume = 1;
+      speechSynthesis.speak(u);   // a segunda fala entra na fila e toca depois da primeira
+    });
+  }, 700);
+}
+
 function setSom(on) {
   somLigado = on;
   $("btn-som").setAttribute("aria-pressed", on ? "true" : "false");
-  $("btn-som").textContent = on ? "Som ligado" : "Som desligado";
+  $("btn-som").textContent = on ? "Som e voz ligados" : "Som desligado";
   $("sound").hidden = true;
-  if (on) bip();
+  if (on) bip(); else if ("speechSynthesis" in window) speechSynthesis.cancel();
 }
 
 let marca = null; // identifica a última chamada exibida
@@ -167,6 +201,7 @@ function render() {
     if (marca !== null && m !== marca) {
       now.classList.remove("flash"); void now.offsetWidth; now.classList.add("flash");
       bip();
+      falar(u);
     }
     marca = m;
   } else {
@@ -189,6 +224,11 @@ function relogio() { $("clock").textContent = new Date().toLocaleTimeString("pt-
 $("s-on").addEventListener("click", () => setSom(true));
 $("s-off").addEventListener("click", () => setSom(false));
 $("btn-som").addEventListener("click", () => setSom(!somLigado));
+$("btn-teste").addEventListener("click", () => {
+  if (!somLigado) setSom(true);
+  const u = S.estado().ultimo || { senha: 1, nome: "Maria Souza", consultorio: 1 };
+  bip(); falar(u);
+});
 $("btn-full").addEventListener("click", () => {
   if (document.fullscreenElement) document.exitFullscreen();
   else document.documentElement.requestFullscreen && document.documentElement.requestFullscreen().catch(() => {});

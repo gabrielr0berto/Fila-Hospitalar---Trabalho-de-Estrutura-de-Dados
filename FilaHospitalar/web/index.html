@@ -161,8 +161,12 @@ document.addEventListener("keydown", ev => {
 if (S.estado().senha === 1) S.carregarExemplo();
 document.querySelectorAll("iframe[data-src]").forEach(f => f.src = f.dataset.src);
 
-const h = location.hash.slice(1);
-if (h === "lado-a-lado") modo(true); else mostrar(TELAS.includes(h) ? h : "triagem");
+function lerHash() {
+  const h = location.hash.slice(1);
+  if (h === "lado-a-lado") modo(true); else { if (lado) modo(false); mostrar(TELAS.includes(h) ? h : "triagem", true); }
+}
+window.addEventListener("hashchange", lerHash);
+lerHash();
 S.aoMudar(atualizar);
 atualizar();
 </script>

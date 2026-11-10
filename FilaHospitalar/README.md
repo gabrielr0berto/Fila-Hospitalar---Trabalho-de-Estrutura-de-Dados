@@ -137,22 +137,47 @@ Carla — os dois são amarelos, e Bruno chegou antes.
 
 ## 🌐 Versão web
 
-Além do programa de terminal, o projeto tem duas páginas web com a mesma
-lógica, escritas em HTML e JavaScript puros (sem servidor e sem instalação).
-Basta abrir o arquivo no navegador.
+Além do programa de terminal, o projeto tem uma versão web com a mesma
+lógica, escrita em HTML e JavaScript puros (sem servidor e sem instalação).
+São três telas que **se comunicam entre si**: o que acontece em uma aparece
+nas outras na hora, sem recarregar a página.
 
-| Página | O que faz |
+```
+ Triagem  ──admite──▶  Fila e chamada  ──chama──▶  Painel da TV
+    ▲                        │
+    └──── situação do paciente (aguardando / chamado) ────┘
+```
+
+| Tela | O que faz |
 |---|---|
-| `web/fila-hospitalar.html` | Painel do pronto-socorro: admitir paciente, chamar o próximo, ver a ordem de atendimento com o tempo de espera e os 5 baldes FIFO desenhados na tela |
-| `web/triagem.html` | Triagem de um paciente por vez: identificação, queixa, sinais vitais e sinais de alerta, gerando a ficha com a cor de risco e o histórico de triagens |
+| `web/index.html` | Página inicial com o fluxo e links para as três telas |
+| `web/triagem.html` | Triagem: identificação, queixa, sinais vitais e sinais de alerta. Ao concluir, o paciente recebe a senha e **entra direto na fila**. A tabela mostra a situação de cada paciente (posição na fila ou consultório em que foi chamado) |
+| `web/fila-hospitalar.html` | Fila de atendimento: ordem por gravidade e chegada, tempo de espera, os 5 baldes FIFO e o botão **Chamar próximo** com escolha do consultório |
+| `web/painel.html` | Painel para a TV da sala de espera: senha chamada, nome curto, consultório, chamadas anteriores e aviso sonoro |
+| `web/vitrine.html` | Simulação acelerada de um plantão, independente das outras telas |
+| `web/sistema.js` | Núcleo comum: TAD `Fila`, `FilaDePrioridade`, classificação de risco e o estado compartilhado |
 
-As classes `Fila` e `FilaDePrioridade` e a função de classificação de risco
-são uma tradução direta do código Python. A tela de triagem acrescenta
-**sinais de alerta** (por exemplo, dor no peito ou falta de ar intensa), que
-podem elevar a cor mesmo com os sinais vitais normais. Esses critérios são
-simplificados e têm uso apenas educacional.
+### Como as telas conversam
 
-Os dados ficam salvos no navegador de quem está usando (`localStorage`).
+Todas as telas carregam o mesmo `sistema.js`. O estado (os 5 baldes, a
+próxima senha, os pacientes e as chamadas) fica gravado no `localStorage`
+do navegador. Quando uma tela grava, o navegador avisa as outras abas pelo
+evento `storage` (e por um `BroadcastChannel`), e cada uma se redesenha.
+Antes de alterar qualquer coisa, a tela lê o estado mais recente, para não
+apagar o que outra aba acabou de fazer.
+
+**Para demonstrar:** abra as três telas em abas ou janelas lado a lado,
+**no mesmo navegador**. Faça uma triagem e veja o paciente entrar na fila;
+clique em *Chamar próximo* e veja a senha aparecer no painel.
+
+> Use Chrome ou Edge abrindo os arquivos direto. No Firefox, cada arquivo
+> aberto do disco fica isolado; nesse caso rode um servidor simples na pasta
+> `web` (`python -m http.server`) e acesse `http://localhost:8000`.
+
+A tela de triagem acrescenta **sinais de alerta** (por exemplo, dor no
+peito ou falta de ar intensa), que podem elevar a cor mesmo com os sinais
+vitais normais. Esses critérios são simplificados e têm uso apenas
+educacional.
 
 ## 📁 Estrutura do projeto
 
@@ -160,8 +185,12 @@ Os dados ficam salvos no navegador de quem está usando (`localStorage`).
 .
 ├── fila_hospitalar.py        # Código-fonte principal (terminal)
 ├── web/
-│   ├── fila-hospitalar.html  # Versão web da fila de atendimento
-│   └── triagem.html          # Tela de triagem básica
+│   ├── index.html            # Início: fluxo e links para as telas
+│   ├── triagem.html          # Tela 1: triagem, envia o paciente para a fila
+│   ├── fila-hospitalar.html  # Tela 2: fila de atendimento e chamada
+│   ├── painel.html           # Tela 3: painel de chamada para a TV
+│   ├── sistema.js            # Núcleo comum e estado compartilhado
+│   └── vitrine.html          # Simulação de um plantão
 └── README.md                 # Este arquivo
 ```
 

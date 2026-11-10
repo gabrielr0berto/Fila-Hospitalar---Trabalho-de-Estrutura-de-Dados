@@ -217,6 +217,11 @@ tr.first td:first-child { box-shadow: inset 4px 0 0 var(--accent); }
   .flash { animation: flash .9s ease-out; }
   @keyframes flash { from { box-shadow: 0 0 0 6px var(--c, var(--accent)); } to { box-shadow: 0 0 0 0 transparent; } }
 }
+/* Integração com as outras telas */
+tbody tr.novo td { animation: novo 2.5s ease-out; }
+@keyframes novo { from { background: var(--soft); } to { background: transparent; } }
+small.via { font-size: 11px; color: var(--accent); border: 1px solid var(--accent); border-radius: 999px; padding: 0 6px; font-weight: 700; }
+small.q { color: var(--muted); font-size: 12.5px; }
 </style>
 </head>
 <body>
@@ -309,7 +314,14 @@ tr.first td:first-child { box-shadow: inset 4px 0 0 var(--accent); }
           <div class="who" id="sc-who">Nenhum paciente chamado</div>
           <div class="meta" id="sc-meta">Clique em “Chamar próximo” para iniciar o atendimento.</div>
         </div>
-        <button class="btn big" id="btn-next">Chamar próximo</button>
+        <div style="display:grid;gap:8px">
+          <label for="f-cons" style="font-size:12.5px;color:var(--muted)">Consultório</label>
+          <select id="f-cons" style="font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink)">
+            <option value="1">Consultório 1</option><option value="2">Consultório 2</option><option value="3">Consultório 3</option>
+          </select>
+          <button class="btn big" id="btn-next">Chamar próximo</button>
+          <button class="btn ghost" id="btn-again" type="button">Chamar de novo no painel</button>
+        </div>
       </div>
       <div class="next-line" id="next-line"></div>
     </section>
@@ -345,7 +357,7 @@ tr.first td:first-child { box-shadow: inset 4px 0 0 var(--accent); }
 <div class="modal" id="modal" role="dialog" aria-modal="true" aria-labelledby="m-title">
   <div class="box">
     <h3 id="m-title" style="font-size:20px">Zerar o sistema?</h3>
-    <p style="margin:0;color:var(--muted)">A fila, o histórico e a contagem de senhas voltam ao início. Não dá para desfazer.</p>
+    <p style="margin:0;color:var(--muted)">A fila, o histórico, as triagens e a contagem de senhas voltam ao início em todas as telas. Não dá para desfazer.</p>
     <div class="row">
       <button class="btn ghost" id="m-cancel">Cancelar</button>
       <button class="btn danger" id="m-ok">Zerar</button>
@@ -353,106 +365,14 @@ tr.first td:first-child { box-shadow: inset 4px 0 0 var(--accent); }
   </div>
 </div>
 
+<script src="sistema.js"></script>
 <script>
-/* ===== Mesma lógica do fila_hospitalar.py ===== */
-const CAPACIDADE = 100;
-const NIVEIS = 5;
-const NOMES_RISCO = {5: "VERMELHO", 4: "LARANJA", 3: "AMARELO", 2: "VERDE", 1: "AZUL"};
-const TEMPO_MAXIMO = {5: 0, 4: 10, 3: 60, 2: 120, 1: 240};
-
-class Fila {
-  constructor(itens) { this.itens = itens || []; }
-  vazia() { return this.itens.length === 0; }
-  cheia() { return this.itens.length === CAPACIDADE; }
-  tamanho() { return this.itens.length; }
-  enfileirar(p) { if (this.cheia()) return false; this.itens.push(p); return true; }
-  desenfileirar() { if (this.vazia()) return [false, null]; return [true, this.itens.shift()]; }
-  frente() { if (this.vazia()) return [false, null]; return [true, this.itens[0]]; }
-}
-
-class FilaDePrioridade {
-  constructor() {
-    // baldes[1] = azul ... baldes[5] = vermelho; posição 0 não usada
-    this.baldes = [null];
-    for (let n = 1; n <= NIVEIS; n++) this.baldes.push(new Fila());
-  }
-  total() { let s = 0; for (let n = 1; n <= NIVEIS; n++) s += this.baldes[n].tamanho(); return s; }
-  vazia() { return this.total() === 0; }
-  inserir(p) { return this.baldes[p.risco].enfileirar(p); }
-  proximo() {
-    for (let n = NIVEIS; n >= 1; n--) if (!this.baldes[n].vazia()) return this.baldes[n].desenfileirar();
-    return [false, null];
-  }
-  espiar() {
-    for (let n = NIVEIS; n >= 1; n--) if (!this.baldes[n].vazia()) return this.baldes[n].frente();
-    return [false, null];
-  }
-  ordem() {
-    const out = [];
-    for (let n = NIVEIS; n >= 1; n--) out.push(...this.baldes[n].itens);
-    return out;
-  }
-}
-
-/* Retorna o nível e, para exibir na tela, o motivo de cada sinal. */
-function classificarRisco(fc, sat, temp, dor) {
-  let nivel = 1; const motivos = [];
-  const marca = (n, txt) => { nivel = Math.max(nivel, n); motivos.push([n, txt]); };
-
-  if (fc > 150 || fc < 40) marca(5, "FC " + fc + " bpm");
-  else if (fc > 120) marca(4, "FC " + fc + " bpm");
-  else if (fc > 100) marca(3, "FC " + fc + " bpm");
-
-  if (sat < 85) marca(5, "SpO₂ " + sat + "%");
-  else if (sat < 90) marca(4, "SpO₂ " + sat + "%");
-  else if (sat < 94) marca(3, "SpO₂ " + sat + "%");
-
-  const t = fmtTemp(temp);
-  if (temp >= 39.5 || temp <= 35.0) marca(5, "Temperatura " + t + " °C");
-  else if (temp >= 38.5) marca(3, "Temperatura " + t + " °C");
-  else if (temp >= 37.8) marca(2, "Temperatura " + t + " °C");
-
-  if (dor >= 9) marca(4, "Dor " + dor + "/10");
-  else if (dor >= 6) marca(3, "Dor " + dor + "/10");
-  else if (dor >= 4) marca(2, "Dor " + dor + "/10");
-
-  return { nivel, motivos };
-}
-
-/* ===== Estado ===== */
-const KEY = "fila-hospitalar-v1";
-let fila = new FilaDePrioridade();
-let senha = 1;
-let historico = [];
-let ultimo = null;
-
-function salvar() {
-  try {
-    localStorage.setItem(KEY, JSON.stringify({
-      baldes: fila.baldes.slice(1).map(b => b.itens), senha, historico, ultimo
-    }));
-  } catch (e) { /* sem armazenamento: segue só em memória */ }
-}
-function carregar() {
-  try {
-    const raw = localStorage.getItem(KEY);
-    if (!raw) return false;
-    const d = JSON.parse(raw);
-    fila = new FilaDePrioridade();
-    d.baldes.forEach((itens, i) => { fila.baldes[i + 1] = new Fila(itens); });
-    senha = d.senha; historico = d.historico || []; ultimo = d.ultimo || null;
-    return true;
-  } catch (e) { return false; }
-}
-
-/* ===== Utilitários ===== */
+/* Esta tela usa o núcleo comum (sistema.js). Tudo o que ela grava aparece
+   na triagem e no painel da TV, e o que a triagem admite aparece aqui. */
+const S = Sistema;
+const { NIVEIS, CAPACIDADE, NOMES_RISCO, TEMPO_MAXIMO, esc, hora, minutos, fmtDur } = S;
 const $ = id => document.getElementById(id);
-const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-function fmtTemp(t) { return t.toFixed(1).replace(".", ","); }
-function hora(ms) { return new Date(ms).toLocaleTimeString("pt-BR", {hour: "2-digit", minute: "2-digit"}); }
-function minutos(ms) { return Math.floor(ms / 60000); }
-function fmtDur(min) { if (min < 60) return min + " min"; return Math.floor(min / 60) + "h" + String(min % 60).padStart(2, "0"); }
-function pill(n) { return '<span class="pill lvx lv' + n + '">' + NOMES_RISCO[n] + '</span>'; }
+const pill = n => '<span class="pill lvx lv' + n + '">' + NOMES_RISCO[n] + '</span>';
 
 /* ===== Leitura do formulário (equivale a ler_inteiro / ler_decimal) ===== */
 function lerCampo(id, min, max, inteiro) {
@@ -492,7 +412,7 @@ function atualizarPrevia() {
     $("pv-why").innerHTML = "";
     return;
   }
-  const r = classificarRisco(s.fc, s.sat, s.temp, s.dor);
+  const r = S.classificarRisco(s.fc, s.sat, s.temp, s.dor);
   pv.className = "preview lvx lv" + r.nivel;
   $("pv-lvl").textContent = NOMES_RISCO[r.nivel];
   $("pv-target").textContent = r.nivel === 5 ? "Atendimento imediato" : "Tempo máximo de espera: " + TEMPO_MAXIMO[r.nivel] + " minutos";
@@ -512,58 +432,26 @@ function admitir(ev) {
   const s = lerSinais(true);
   if (!nome || !s.ok) { toast("Admissão não realizada: corrija os campos marcados."); return; }
 
-  const r = classificarRisco(s.fc, s.sat, s.temp, s.dor);
-  const paciente = { senha, nome, risco: r.nivel, chegada: Date.now(),
-    sinais: { fc: s.fc, sat: s.sat, temp: s.temp, dor: s.dor } };
-  if (!fila.inserir(paciente)) {
-    toast("Fila lotada para o nível " + NOMES_RISCO[r.nivel] + " (100 pacientes). Admissão recusada.");
-    return;
-  }
-  toast("Senha <b class='num'>" + senha + "</b> · " + esc(nome) + " · " + pill(r.nivel));
-  senha++;
+  const r = S.admitir({ nome, sinais: { fc: s.fc, sat: s.sat, temp: s.temp, dor: s.dor }, origem: "recepção" });
+  if (!r.ok) { toast(r.erro + " Admissão recusada."); return; }
+  toast("Senha <b class='num'>" + r.paciente.senha + "</b> · " + esc(nome) + " · " + pill(r.paciente.risco));
   $("f-nome").value = ""; $("f-fc").value = "80"; $("f-sat").value = "98"; $("f-temp").value = "36,5"; $("f-dor").value = "0";
   $("f-nome").focus();
-  salvar(); atualizarPrevia(); render();
+  atualizarPrevia();
 }
 
 function chamarProximo() {
-  const [ok, p] = fila.proximo();
-  if (!ok) { $("next-line").textContent = "Não há pacientes aguardando."; return; }
-  p.chamada = Date.now();
-  ultimo = p;
-  historico.unshift(p);
-  salvar(); render();
+  const p = S.chamarProximo(Number($("f-cons").value));
+  if (!p) { $("next-line").textContent = "Não há pacientes aguardando."; return; }
   const sc = $("screen");
   sc.classList.remove("flash"); void sc.offsetWidth; sc.classList.add("flash");
 }
 
-function zerar() {
-  fila = new FilaDePrioridade(); senha = 1; historico = []; ultimo = null;
-  salvar(); toast(""); render();
-}
-
-function carregarExemplo() {
-  // Pacientes de exemplo, com chegadas no passado para mostrar a espera.
-  const agora = Date.now(), min = 60000;
-  const ex = [
-    ["Ana Ribeiro",      [ 78, 98, 36.6, 2], 95],
-    ["Diego Almeida",    [168, 84, 39.6, 9],  4],
-    ["Bruno Carvalho",   [108, 96, 37.2, 5], 70],
-    ["Carla Menezes",    [ 92, 93, 38.6, 3], 41],
-    ["Eduarda Lima",     [126, 95, 37.0, 7], 14],
-    ["Fábio Nogueira",   [ 85, 97, 37.9, 4], 33],
-    ["Gisele Prado",     [ 72, 99, 36.4, 1], 12]
-  ];
-  ex.forEach(([nome, [fc, sat, temp, dor], atras]) => {
-    const r = classificarRisco(fc, sat, temp, dor);
-    fila.inserir({ senha: senha++, nome, risco: r.nivel, chegada: agora - atras * min, sinais: { fc, sat, temp, dor } });
-  });
-  toast("Exemplo carregado: 7 pacientes com chegadas fictícias.");
-  salvar(); render();
-}
-
 /* ===== Renderização ===== */
+let senhaVista = null;
 function render() {
+  const e = S.estado();
+  const fila = e.fila, historico = e.historico, ultimo = e.ultimo;
   const agora = Date.now();
   const ordem = fila.ordem();
   let atrasados = 0;
@@ -578,22 +466,25 @@ function render() {
       if (esperou > alvo) { cls = "crit"; atrasados++; txt = fmtDur(esperou) + " · " + fmtDur(esperou - alvo) + " acima"; }
       else { if (pct >= 75) cls = "warn"; txt = fmtDur(esperou) + " de " + fmtDur(alvo); }
     }
-    return '<tr class="' + (i === 0 ? "first" : "") + '">' +
+    const novo = p.senha > (senhaVista || 0) && senhaVista !== null;
+    return '<tr class="' + (i === 0 ? "first" : "") + (novo ? " novo" : "") + '">' +
       '<td class="r num">' + (i + 1) + '</td>' +
       '<td class="r num"><b>' + p.senha + '</b></td>' +
-      '<td class="name">' + esc(p.nome) + '</td>' +
+      '<td class="name">' + esc(p.nome) + (p.origem === "triagem" ? ' <small class="via">via triagem</small>' : "") +
+        (p.queixa ? '<br><small class="q">' + esc(p.queixa) + '</small>' : "") + '</td>' +
       '<td>' + pill(p.risco) + '</td>' +
       '<td class="num">' + hora(p.chegada) + '</td>' +
       '<td><div class="wait ' + cls + '"><div class="bar"><i style="width:' + pct.toFixed(0) + '%"></i></div><small>' + txt + '</small></div></td>' +
       '</tr>';
   }).join("") : '<tr><td colspan="6" class="empty">Não há pacientes aguardando.</td></tr>';
+  senhaVista = e.senha - 1;
 
   // Baldes
   const [okE, prox] = fila.espiar();
   let lanes = "";
   for (let n = NIVEIS; n >= 1; n--) {
     const b = fila.baldes[n];
-    const chips = b.itens.map((p, i) =>
+    const chips = b.itens.map(p =>
       '<span class="chip' + (okE && prox.senha === p.senha ? " head" : "") + '" title="' + esc(p.nome) + '">#' + p.senha + '</span>').join("");
     lanes += '<div class="lane lv' + n + '">' +
       '<div class="lane-name"><b>' + NOMES_RISCO[n] + '</b><span class="num">' + b.tamanho() + '/' + CAPACIDADE + ' · ' + (n === 5 ? "0" : TEMPO_MAXIMO[n]) + 'min</span></div>' +
@@ -602,24 +493,28 @@ function render() {
   }
   $("lanes").innerHTML = lanes;
 
-  // Painel de chamada
+  // Último chamado (o mesmo que aparece no painel da TV)
   const sc = $("screen");
   if (ultimo) {
-    sc.className = "screen lvx lv" + ultimo.risco;
+    sc.className = "screen lvx lv" + ultimo.risco + (sc.classList.contains("flash") ? " flash" : "");
     $("sc-who").innerHTML = "Senha " + ultimo.senha + " · " + esc(ultimo.nome);
-    $("sc-meta").innerHTML = NOMES_RISCO[ultimo.risco] + " · chamado às " + hora(ultimo.chamada) + " após " + fmtDur(minutos(ultimo.chamada - ultimo.chegada)) + " de espera";
+    $("sc-meta").innerHTML = NOMES_RISCO[ultimo.risco] + " · consultório " + (ultimo.consultorio || 1) + " · chamado às " + hora(ultimo.chamada) +
+      " após " + fmtDur(minutos(ultimo.chamada - ultimo.chegada)) + " de espera";
   } else {
     sc.className = "screen";
+    $("sc-who").textContent = "Nenhum paciente chamado";
+    $("sc-meta").textContent = "Clique em “Chamar próximo” para iniciar o atendimento.";
   }
   $("next-line").innerHTML = okE
     ? "Próximo a ser chamado: <b>senha " + prox.senha + " · " + esc(prox.nome) + "</b> " + pill(prox.risco)
     : "Nenhum paciente aguardando.";
   $("btn-next").disabled = !okE;
+  $("btn-again").disabled = !ultimo;
 
   // Histórico
   $("hist").innerHTML = historico.length ? historico.map(p =>
     '<li><span class="num">' + hora(p.chamada) + '</span><b class="num">#' + p.senha + '</b><span class="grow">' + esc(p.nome) + '</span>' + pill(p.risco) +
-    '<span class="num">esperou ' + fmtDur(minutos(p.chamada - p.chegada)) + '</span></li>').join("")
+    '<span class="num">C' + (p.consultorio || 1) + ' · esperou ' + fmtDur(minutos(p.chamada - p.chegada)) + '</span></li>').join("")
     : '<li class="empty" style="justify-content:center;border:0">Ninguém foi chamado ainda.</li>';
 
   // Cabeçalho
@@ -627,20 +522,23 @@ function render() {
   $("st-late").textContent = atrasados;
   $("st-late-box").classList.toggle("alert", atrasados > 0);
   $("st-called").textContent = historico.length;
-  $("st-senha").textContent = senha;
+  $("st-senha").textContent = e.senha;
 }
 
 /* ===== Eventos ===== */
 $("form").addEventListener("submit", admitir);
 ["f-fc", "f-sat", "f-temp", "f-dor"].forEach(id => $(id).addEventListener("input", atualizarPrevia));
 $("btn-next").addEventListener("click", chamarProximo);
-$("btn-demo").addEventListener("click", carregarExemplo);
+$("btn-again").addEventListener("click", () => S.rechamar());
+$("btn-demo").addEventListener("click", () => { S.carregarExemplo(); toast("Exemplo carregado: 7 pacientes com chegadas fictícias."); });
 $("btn-reset").addEventListener("click", () => { $("modal").classList.add("open"); $("m-cancel").focus(); });
 $("m-cancel").addEventListener("click", () => $("modal").classList.remove("open"));
-$("m-ok").addEventListener("click", () => { $("modal").classList.remove("open"); zerar(); });
+$("m-ok").addEventListener("click", () => { $("modal").classList.remove("open"); S.zerar(); toast(""); });
 document.addEventListener("keydown", e => { if (e.key === "Escape") $("modal").classList.remove("open"); });
 
-if (!carregar()) carregarExemplo();
+S.nav("fila-hospitalar.html");
+S.aoMudar(render);   // atualiza quando a triagem admite ou outra aba chama
+if (S.estado().senha === 1) S.carregarExemplo();
 atualizarPrevia();
 render();
 setInterval(render, 30000);

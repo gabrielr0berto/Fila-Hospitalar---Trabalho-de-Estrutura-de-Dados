@@ -128,68 +128,23 @@ function nomeCurto(n) {
   return p.length > 1 ? p[0] + " " + p[p.length - 1][0] + "." : p[0];
 }
 
-let somLigado = false, ctx = null;
-function bip() {
-  if (!somLigado) return;
-  try {
-    ctx = ctx || new (window.AudioContext || window.webkitAudioContext)();
-    [[880, 0], [660, .28]].forEach(([f, t]) => {
-      const o = ctx.createOscillator(), g = ctx.createGain();
-      o.frequency.value = f; o.type = "sine";
-      g.gain.setValueAtTime(0, ctx.currentTime + t);
-      g.gain.linearRampToValueAtTime(.35, ctx.currentTime + t + .03);
-      g.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + t + .5);
-      o.connect(g).connect(ctx.destination); o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + .55);
-    });
-  } catch (e) {}
-}
-/* ===== Voz: anuncia a chamada em português (Web Speech API do navegador) ===== */
-let voz = null;
-function escolherVoz() {
-  if (!("speechSynthesis" in window)) return;
-  const vs = speechSynthesis.getVoices().filter(v => /^pt/i.test(v.lang));
-  // Prefere português do Brasil e VOZ FEMININA.
-  // Femininas conhecidas: Francisca e Thalita (Edge/Windows), Maria (Windows),
-  // Google português do Brasil (Chrome), Luciana e Fernanda (Mac/iPhone).
-  const br = vs.filter(v => /pt[-_]BR/i.test(v.lang));
-  const lista = br.length ? br : vs;
-  const FEM = /francisca|thalita|maria|luciana|fernanda|leila|yara|manuela|brenda|elza|giovanna|leticia|let[ií]cia|raquel|vit[oó]ria|google/i;
-  const MASC = /antonio|ant[oô]nio|daniel|felipe|donato|fabio|f[aá]bio|humberto|julio|j[uú]lio|nicolau|valerio|val[eé]rio|macerio/i;
-  const fem = lista.filter(v => FEM.test(v.name) && !MASC.test(v.name));
-  voz = fem.find(v => /natural|online/i.test(v.name)) || fem[0]
-     || lista.find(v => !MASC.test(v.name)) || lista[0] || null;
-  vozFeminina = !!voz && !MASC.test(voz.name);
-}
-let vozFeminina = true;
-if ("speechSynthesis" in window) { escolherVoz(); speechSynthesis.onvoiceschanged = escolherVoz; }
+/* O aviso sonoro e a voz ficam no núcleo comum (Sistema.audio), para a
+   central de uma aba só usar o mesmo anunciador. */
+const somLigado = () => S.audio.ligado();
+const bip = () => S.audio.bip();
+const falar = p => S.audio.anunciar(p);
 
-const NUM = ["zero","um","dois","três","quatro","cinco","seis","sete","oito","nove","dez"];
-function nomeFalado(n) {
-  const p = String(n).trim().split(/\s+/);
-  return p.length > 1 ? p[0] + " " + p[p.length - 1] : p[0];
-}
-function falar(p) {
-  if (!somLigado || !("speechSynthesis" in window) || !p) return;
-  const cons = p.consultorio || 1;
-  const texto = "Senha " + p.senha + ". " + nomeFalado(p.nome) + ". Dirija-se ao consultório " + (NUM[cons] || cons) + ".";
-  speechSynthesis.cancel();
-  // Fala duas vezes, como nos painéis de pronto-socorro
-  setTimeout(() => {   // espera o aviso sonoro terminar
-    [texto, texto].forEach(t => {
-      const u = new SpeechSynthesisUtterance(t);
-      u.lang = "pt-BR"; if (voz) u.voice = voz;
-      u.rate = 0.92; u.pitch = vozFeminina ? 1.05 : 1.35; u.volume = 1;   // se só houver voz masculina, deixa o tom mais agudo
-      speechSynthesis.speak(u);   // a segunda fala entra na fila e toca depois da primeira
-    });
-  }, 700);
+/* Dentro da central (uma aba só), quem fala é a central: o painel só mostra. */
+if (S.embutido) {
+  document.querySelector(".tools").style.display = "none";
+  $("sound").hidden = true;
 }
 
 function setSom(on) {
-  somLigado = on;
+  S.audio.ligar(on);
   $("btn-som").setAttribute("aria-pressed", on ? "true" : "false");
   $("btn-som").textContent = on ? "Som e voz ligados" : "Som desligado";
   $("sound").hidden = true;
-  if (on) bip(); else if ("speechSynthesis" in window) speechSynthesis.cancel();
 }
 
 let marca = null; // identifica a última chamada exibida
@@ -208,8 +163,7 @@ function render() {
     const m = u.senha + ":" + (u.rechamada || u.chamada);
     if (marca !== null && m !== marca) {
       now.classList.remove("flash"); void now.offsetWidth; now.classList.add("flash");
-      bip();
-      falar(u);
+      if (!S.embutido) { bip(); falar(u); }
     }
     marca = m;
   } else {
@@ -231,12 +185,8 @@ function relogio() { $("clock").textContent = new Date().toLocaleTimeString("pt-
 
 $("s-on").addEventListener("click", () => setSom(true));
 $("s-off").addEventListener("click", () => setSom(false));
-$("btn-som").addEventListener("click", () => setSom(!somLigado));
-$("btn-teste").addEventListener("click", () => {
-  if (!somLigado) setSom(true);
-  const u = S.estado().ultimo || { senha: 1, nome: "Maria Souza", consultorio: 1 };
-  bip(); falar(u);
-});
+$("btn-som").addEventListener("click", () => setSom(!somLigado()));
+$("btn-teste").addEventListener("click", () => { if (!somLigado()) setSom(true); S.audio.testar(); });
 $("btn-full").addEventListener("click", () => {
   if (document.fullscreenElement) document.exitFullscreen();
   else document.documentElement.requestFullscreen && document.documentElement.requestFullscreen().catch(() => {});

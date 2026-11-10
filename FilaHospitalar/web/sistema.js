@@ -224,13 +224,88 @@
   const minutos = ms => Math.floor(ms / 60000);
   const fmtDur = min => min < 60 ? min + " min" : Math.floor(min / 60) + "h" + String(min % 60).padStart(2, "0");
 
+
+  /* ---------- Aviso sonoro e voz (usados pelo painel e pela central) ---------- */
+  const audio = (function () {
+    let ligado = false, ctx = null, voz = null, vozFeminina = true;
+    const temVoz = "speechSynthesis" in global;
+    function escolherVoz() {
+      if (!temVoz) return;
+      const vs = speechSynthesis.getVoices().filter(v => /^pt/i.test(v.lang));
+      // Prefere português do Brasil e VOZ FEMININA.
+      // Femininas conhecidas: Francisca e Thalita (Edge/Windows), Maria (Windows),
+      // Google português do Brasil (Chrome), Luciana e Fernanda (Mac/iPhone).
+      const br = vs.filter(v => /pt[-_]BR/i.test(v.lang));
+      const lista = br.length ? br : vs;
+      const FEM = /francisca|thalita|maria|luciana|fernanda|leila|yara|manuela|brenda|elza|giovanna|leticia|let[ií]cia|raquel|vit[oó]ria|google/i;
+      const MASC = /antonio|ant[oô]nio|daniel|felipe|donato|fabio|f[aá]bio|humberto|julio|j[uú]lio|nicolau|valerio|val[eé]rio|macerio/i;
+      const fem = lista.filter(v => FEM.test(v.name) && !MASC.test(v.name));
+      voz = fem.find(v => /natural|online/i.test(v.name)) || fem[0]
+         || lista.find(v => !MASC.test(v.name)) || lista[0] || null;
+      vozFeminina = !!voz && !MASC.test(voz.name);
+    }
+    if (temVoz) { escolherVoz(); speechSynthesis.onvoiceschanged = escolherVoz; }
+
+    function bip() {
+      if (!ligado) return;
+      try {
+        ctx = ctx || new (global.AudioContext || global.webkitAudioContext)();
+        [[880, 0], [660, .28]].forEach(([f, t]) => {
+          const o = ctx.createOscillator(), g = ctx.createGain();
+          o.frequency.value = f; o.type = "sine";
+          g.gain.setValueAtTime(0, ctx.currentTime + t);
+          g.gain.linearRampToValueAtTime(.35, ctx.currentTime + t + .03);
+          g.gain.exponentialRampToValueAtTime(.001, ctx.currentTime + t + .5);
+          o.connect(g).connect(ctx.destination); o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + .55);
+        });
+      } catch (e) {}
+    }
+    const NUM = ["zero","um","dois","três","quatro","cinco","seis","sete","oito","nove","dez"];
+    const nomeFalado = n => { const p = String(n).trim().split(/\s+/); return p.length > 1 ? p[0] + " " + p[p.length - 1] : p[0]; };
+    function falar(p) {
+      if (!ligado || !temVoz || !p) return;
+      const cons = p.consultorio || 1;
+      const texto = "Senha " + p.senha + ". " + nomeFalado(p.nome) + ". Dirija-se ao consultório " + (NUM[cons] || cons) + ".";
+      speechSynthesis.cancel();
+      setTimeout(() => {   // espera o aviso sonoro terminar; fala duas vezes, como nos painéis de pronto-socorro
+        [texto, texto].forEach(t => {
+          const u = new SpeechSynthesisUtterance(t);
+          u.lang = "pt-BR"; if (voz) u.voice = voz;
+          u.rate = 0.92; u.pitch = vozFeminina ? 1.05 : 1.35; u.volume = 1;   // só voz masculina? tom mais agudo
+          speechSynthesis.speak(u);
+        });
+      }, 700);
+    }
+    return {
+      ligado: () => ligado,
+      ligar(on) { ligado = !!on; if (ligado) bip(); else if (temVoz) speechSynthesis.cancel(); },
+      bip,
+      anunciar(p) { bip(); falar(p); },
+      testar() { const e = ler(); this.anunciar(e.ultimo || { senha: 1, nome: "Maria Souza", consultorio: 1 }); }
+    };
+  })();
+
+  /* Tela aberta dentro da central (uma aba só)? */
+  const embutido = /[?&]embed\b/.test(global.location.search);
+
   /* Barra de navegação comum: liga as telas e mostra que estão sincronizadas. */
   const TELAS = [
+    ["index.html", "Central (uma aba)"],
     ["triagem.html", "1 · Triagem"],
     ["fila-hospitalar.html", "2 · Fila e chamada"],
     ["painel.html", "3 · Painel da TV"]
   ];
   function nav(atual) {
+    if (embutido) {
+      // Na central, os links entre telas trocam a aba da central em vez de sair dela
+      document.addEventListener("click", ev => {
+        const a = ev.target.closest && ev.target.closest("a[href]");
+        if (!a) return;
+        const alvo = TELAS.find(t => a.getAttribute("href") === t[0]);
+        if (alvo) { ev.preventDefault(); try { global.parent.postMessage({ abrir: alvo[0] }, "*"); } catch (e) {} }
+      });
+      return;
+    }
     const css = document.createElement("style");
     css.textContent =
       ".sys-nav{display:flex;flex-wrap:wrap;align-items:center;gap:6px 4px;padding:8px 24px;background:var(--surface);border-bottom:1px solid var(--line);font-size:14px;position:sticky;top:0;z-index:20}" +
@@ -261,7 +336,7 @@
   global.Sistema = {
     CAPACIDADE, NIVEIS, NOMES_RISCO, DESC_RISCO, TEMPO_MAXIMO, ALERTAS,
     Fila, FilaDePrioridade, classificarRisco, triar,
-    estado: ler, admitir, chamarProximo, rechamar, zerar, situacao, carregarExemplo, aoMudar, nav,
+    estado: ler, admitir, chamarProximo, rechamar, zerar, situacao, carregarExemplo, aoMudar, nav, audio, embutido, TELAS,
     esc, hora, minutos, fmtDur, fmtTemp
   };
 })(window);

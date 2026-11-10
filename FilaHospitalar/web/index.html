@@ -3,70 +3,168 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Fila Hospitalar · Início</title>
-<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Barlow+Semi+Condensed:wght@600;700&display=swap" rel="stylesheet">
+<title>Fila Hospitalar · Central</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=Barlow+Semi+Condensed:wght@600;700&family=JetBrains+Mono:wght@400;600&display=swap" rel="stylesheet">
 <style>
-:root { --bg: #eef2f4; --surface: #fff; --ink: #15232b; --muted: #5b6c76; --line: #d5dee3; --accent: #0b6e8a; --accent-ink: #fff; --soft: #e3edf1;
-  --f-display: "Barlow Semi Condensed", "Arial Narrow", sans-serif; --f-body: "Atkinson Hyperlegible", "Segoe UI", Arial, sans-serif; }
-@media (prefers-color-scheme: dark) { :root { --bg: #0e171c; --surface: #162229; --ink: #e4ecef; --muted: #93a6b0; --line: #2a3a43; --accent: #3fb3d3; --accent-ink: #06222b; --soft: #1d2d35; } }
+/* Central: as três telas do sistema numa aba só, uma por vez ou lado a lado. */
+:root {
+  --bg: #eef2f4; --surface: #fff; --ink: #15232b; --muted: #5b6c76; --line: #d5dee3; --soft: #e3edf1;
+  --accent: #0b6e8a; --accent-ink: #fff; --r5: #c8102e;
+  --f-display: "Barlow Semi Condensed", "Arial Narrow", sans-serif;
+  --f-body: "Atkinson Hyperlegible", "Segoe UI", Arial, sans-serif;
+  --f-mono: "JetBrains Mono", Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root { --bg: #0e171c; --surface: #162229; --ink: #e4ecef; --muted: #93a6b0; --line: #2a3a43; --soft: #1d2d35; --accent: #3fb3d3; --accent-ink: #06222b; --r5: #ff5c6f; }
+}
 * { box-sizing: border-box; }
-body { margin: 0; background: var(--bg); color: var(--ink); font-family: var(--f-body); line-height: 1.5; }
-.wrap { max-width: 1000px; margin: 0 auto; padding: 48px 24px; display: grid; gap: 28px; }
-h1 { font-family: var(--f-display); font-size: clamp(34px, 5vw, 52px); margin: 0; line-height: 1.05; }
-.lead { color: var(--muted); font-size: 18px; margin: 0; max-width: 680px; }
-.flow { display: grid; grid-template-columns: 1fr auto 1fr auto 1fr; gap: 12px; align-items: stretch; }
-@media (max-width: 760px) { .flow { grid-template-columns: 1fr; } .arrow { transform: rotate(90deg); justify-self: center; } }
-.card { background: var(--surface); border: 1px solid var(--line); border-radius: 16px; padding: 22px; display: grid; gap: 10px; align-content: start; text-decoration: none; color: inherit; }
-.card:hover { border-color: var(--accent); }
-.card .n { font-family: var(--f-display); font-size: 15px; color: var(--accent); font-weight: 700; letter-spacing: .08em; }
-.card h2 { font-family: var(--f-display); font-size: 26px; margin: 0; }
-.card p { margin: 0; color: var(--muted); font-size: 15px; }
-.card span.go { color: var(--accent); font-weight: 700; font-size: 15px; margin-top: 4px; }
-.arrow { align-self: center; font-size: 28px; color: var(--muted); }
-.tip { background: var(--soft); border-radius: 14px; padding: 18px 20px; display: grid; gap: 6px; font-size: 15px; }
-.tip b { font-size: 16px; }
-.tip ol { margin: 0; padding-left: 20px; }
-.extra { font-size: 15px; color: var(--muted); }
-.extra a { color: var(--accent); }
+html, body { margin: 0; height: 100%; }
+body { background: var(--bg); color: var(--ink); font-family: var(--f-body); display: flex; flex-direction: column; height: 100vh; overflow: hidden; }
+button { font: inherit; color: inherit; cursor: pointer; }
+:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+
+.bar { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px; padding: 8px 16px; background: var(--surface); border-bottom: 1px solid var(--line); }
+.brand { display: flex; align-items: center; gap: 10px; font-family: var(--f-display); font-weight: 700; font-size: 20px; margin-right: 6px; }
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.tab { border: 1px solid transparent; background: transparent; border-radius: 9px; padding: 7px 12px; font-size: 14.5px; display: inline-flex; align-items: center; gap: 8px; color: var(--muted); }
+.tab:hover { background: var(--soft); color: var(--ink); }
+.tab[aria-selected="true"] { background: var(--accent); color: var(--accent-ink); font-weight: 700; }
+.tab .badge { font-family: var(--f-mono); font-size: 12px; padding: 1px 7px; border-radius: 999px; background: var(--soft); color: var(--ink); font-weight: 600; }
+.tab[aria-selected="true"] .badge { background: rgb(255 255 255 / .25); color: inherit; }
+.tab.ping { animation: ping 1.4s ease-out 2; }
+@keyframes ping { from { box-shadow: 0 0 0 0 var(--accent); } to { box-shadow: 0 0 0 10px transparent; } }
+body.lado .tab { pointer-events: none; opacity: .55; }
+
+.right { margin-left: auto; display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 9px; overflow: hidden; }
+.seg button { border: 0; background: var(--surface); padding: 7px 11px; font-size: 13.5px; }
+.seg button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 9px; padding: 7px 12px; font-size: 13.5px; }
+.btn:hover { border-color: var(--accent); }
+.btn.on { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 700; }
+.btn.call { border-color: var(--r5); color: var(--r5); font-weight: 700; animation: call 1.6s ease-in-out infinite; }
+@keyframes call { 50% { box-shadow: 0 0 0 4px rgb(200 16 46 / .18); } }
+a.lnk { color: var(--muted); font-size: 13.5px; }
+
+.stage { flex: 1; position: relative; min-height: 0; }
+.stage iframe { position: absolute; inset: 0; width: 100%; height: 100%; border: 0; background: var(--bg); visibility: hidden; }
+.stage iframe.show { visibility: visible; }
+body.lado .stage { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 1px; background: var(--line); }
+body.lado .stage iframe { position: static; visibility: visible; }
+@media (max-width: 1100px) { body.lado .stage { grid-template-columns: 1fr 1fr; grid-template-rows: 1fr 1fr; } body.lado #f-painel { grid-column: 1 / -1; } }
+body.lado .stage .lbl { display: none; }
+@media (prefers-reduced-motion: reduce) { .tab.ping, .btn.call { animation: none; } }
 </style>
 </head>
 <body>
-<div class="wrap">
-  <div style="display:grid;gap:10px">
-    <h1>Fila Hospitalar com Classificação de Risco</h1>
-    <p class="lead">Três telas que trabalham juntas. O que uma faz aparece nas outras na hora, sem precisar recarregar.</p>
-  </div>
 
-  <div class="flow">
-    <a class="card" href="triagem.html" target="_blank">
-      <span class="n">TELA 1</span><h2>Triagem</h2>
-      <p>O enfermeiro registra os sinais vitais e os sinais de alerta. O sistema define a cor e o paciente entra na fila com uma senha.</p>
-      <span class="go">Abrir em nova aba →</span>
-    </a>
-    <span class="arrow" aria-hidden="true">→</span>
-    <a class="card" href="fila-hospitalar.html" target="_blank">
-      <span class="n">TELA 2</span><h2>Fila e chamada</h2>
-      <p>Mostra a ordem de atendimento por cor e chama o próximo para um consultório.</p>
-      <span class="go">Abrir em nova aba →</span>
-    </a>
-    <span class="arrow" aria-hidden="true">→</span>
-    <a class="card" href="painel.html" target="_blank">
-      <span class="n">TELA 3</span><h2>Painel da TV</h2>
-      <p>Exibe na sala de espera a senha chamada e o consultório, com aviso sonoro e voz que anuncia o paciente.</p>
-      <span class="go">Abrir em nova aba →</span>
-    </a>
+<div class="bar">
+  <span class="brand"><svg width="28" height="28" viewBox="0 0 34 34" aria-hidden="true"><rect width="34" height="34" rx="8" fill="#0b6e8a"/><path d="M14 8h6v6h6v6h-6v6h-6v-6H8v-6h6z" fill="#fff"/></svg>Fila Hospitalar</span>
+  <div class="tabs" role="tablist" aria-label="Telas do sistema">
+    <button class="tab" role="tab" data-tela="triagem" id="t-triagem">1 · Triagem <span class="badge" id="b-triagem">0</span></button>
+    <button class="tab" role="tab" data-tela="fila" id="t-fila">2 · Fila e chamada <span class="badge" id="b-fila">0</span></button>
+    <button class="tab" role="tab" data-tela="painel" id="t-painel">3 · Painel da TV <span class="badge" id="b-painel">–</span></button>
   </div>
-
-  <div class="tip">
-    <b>Como demonstrar</b>
-    <ol>
-      <li>Abra as três telas em abas ou janelas lado a lado, no mesmo navegador.</li>
-      <li>Faça uma triagem: o paciente aparece na hora na fila, na posição certa.</li>
-      <li>Na fila, clique em <b>Chamar próximo</b>: o painel da TV mostra a senha e a triagem passa o paciente para "Chamado".</li>
-    </ol>
+  <div class="right">
+    <div class="seg" role="group" aria-label="Modo de exibição">
+      <button type="button" id="m-uma" aria-pressed="true">Uma por vez</button>
+      <button type="button" id="m-lado" aria-pressed="false">Lado a lado</button>
+    </div>
+    <button type="button" class="btn call" id="btn-som">🔈 Ativar som e voz</button>
+    <button type="button" class="btn" id="btn-teste">Testar voz</button>
+    <a class="lnk" href="vitrine.html">Simulação</a>
   </div>
-
-  <p class="extra">Também há a <a href="vitrine.html">simulação de um plantão</a>, que roda sozinha e não altera os dados das três telas.</p>
 </div>
+
+<div class="stage" id="stage">
+  <iframe id="f-triagem" data-src="triagem.html?embed" title="Triagem"></iframe>
+  <iframe id="f-fila" data-src="fila-hospitalar.html?embed" title="Fila e chamada"></iframe>
+  <iframe id="f-painel" data-src="painel.html?embed" title="Painel da TV"></iframe>
+</div>
+
+<script src="sistema.js"></script>
+<script>
+/* As três telas ficam carregadas o tempo todo, cada uma num quadro desta aba.
+   Elas conversam pelo mesmo estado (sistema.js); a central só escolhe qual
+   mostrar e é ela quem toca o aviso e a voz quando alguém é chamado. */
+const S = Sistema;
+const $ = id => document.getElementById(id);
+const TELAS = ["triagem", "fila", "painel"];
+const ARQ = { "triagem.html": "triagem", "fila-hospitalar.html": "fila", "painel.html": "painel" };
+let atual = "triagem", lado = false;
+
+function mostrar(tela, semHash) {
+  if (!TELAS.includes(tela)) tela = "triagem";
+  atual = tela;
+  TELAS.forEach(t => {
+    $("f-" + t).classList.toggle("show", t === tela);
+    $("t-" + t).setAttribute("aria-selected", t === tela && !lado ? "true" : "false");
+  });
+  $("t-" + tela).classList.remove("ping");
+  if (!semHash) history.replaceState(null, "", "#" + (lado ? "lado-a-lado" : tela));
+}
+function modo(ladoALado) {
+  lado = ladoALado;
+  document.body.classList.toggle("lado", lado);
+  $("m-uma").setAttribute("aria-pressed", lado ? "false" : "true");
+  $("m-lado").setAttribute("aria-pressed", lado ? "true" : "false");
+  mostrar(atual);
+}
+
+/* Contadores nas abas e aviso quando algo muda numa tela que não está à vista */
+let ultSenha = null, ultMarca = null;
+function atualizar() {
+  const e = S.estado();
+  $("b-triagem").textContent = e.registros.length;
+  $("b-fila").textContent = e.fila.total();
+  $("b-painel").textContent = e.ultimo ? "#" + e.ultimo.senha : "–";
+
+  const novaSenha = e.senha - 1;
+  if (ultSenha !== null && novaSenha > ultSenha && atual !== "fila" && !lado) $("t-fila").classList.add("ping");
+  ultSenha = novaSenha;
+
+  const u = e.ultimo;
+  const m = u ? u.senha + ":" + (u.rechamada || u.chamada) : "";
+  if (ultMarca !== null && u && m !== ultMarca) {
+    S.audio.anunciar(u);                       // aviso + voz feminina
+    if (atual !== "painel" && !lado) $("t-painel").classList.add("ping");
+  }
+  ultMarca = m;
+}
+
+function som(on) {
+  S.audio.ligar(on);
+  const b = $("btn-som");
+  b.classList.remove("call");
+  b.classList.toggle("on", on);
+  b.textContent = on ? "🔊 Som e voz ligados" : "🔈 Som desligado";
+}
+
+TELAS.forEach(t => $("t-" + t).addEventListener("click", () => mostrar(t)));
+$("m-uma").addEventListener("click", () => modo(false));
+$("m-lado").addEventListener("click", () => modo(true));
+$("btn-som").addEventListener("click", () => som(!S.audio.ligado()));
+$("btn-teste").addEventListener("click", () => { if (!S.audio.ligado()) som(true); S.audio.testar(); });
+
+// Links dentro das telas (ex.: "Abrir a fila de atendimento") trocam a aba aqui
+window.addEventListener("message", ev => {
+  if (ev.data && ev.data.abrir && ARQ[ev.data.abrir]) { if (lado) modo(false); mostrar(ARQ[ev.data.abrir]); }
+});
+// Atalhos: Alt+1, Alt+2, Alt+3
+document.addEventListener("keydown", ev => {
+  if (ev.altKey && ["1", "2", "3"].includes(ev.key)) { ev.preventDefault(); if (lado) modo(false); mostrar(TELAS[+ev.key - 1]); }
+});
+
+// Carrega o exemplo uma vez só (antes de abrir as telas) e depois abre os quadros
+if (S.estado().senha === 1) S.carregarExemplo();
+document.querySelectorAll("iframe[data-src]").forEach(f => f.src = f.dataset.src);
+
+const h = location.hash.slice(1);
+if (h === "lado-a-lado") modo(true); else mostrar(TELAS.includes(h) ? h : "triagem");
+S.aoMudar(atualizar);
+atualizar();
+</script>
 </body>
 </html>

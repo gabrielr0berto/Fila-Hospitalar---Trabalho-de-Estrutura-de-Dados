@@ -150,7 +150,7 @@ nas outras na hora, sem recarregar a página.
 
 | Tela | O que faz |
 |---|---|
-| `web/index.html` | Página inicial com o fluxo e links para as três telas |
+| `web/index.html` | **Central**: as três telas numa aba só, uma por vez (abas no topo, atalhos Alt+1/2/3) ou todas lado a lado. Mostra contadores, avisa quando algo muda numa tela escondida e toca o aviso e a voz das chamadas |
 | `web/triagem.html` | Triagem: identificação, queixa, sinais vitais e sinais de alerta. Ao concluir, o paciente recebe a senha e **entra direto na fila**. A tabela mostra a situação de cada paciente (posição na fila ou consultório em que foi chamado) |
 | `web/fila-hospitalar.html` | Fila de atendimento: ordem por gravidade e chegada, tempo de espera, os 5 baldes FIFO e o botão **Chamar próximo** com escolha do consultório |
 | `web/painel.html` | Painel para a TV da sala de espera: senha chamada, nome curto, consultório, chamadas anteriores, aviso sonoro e **voz** que anuncia "Senha 8. Maria Souza. Dirija-se ao consultório um." (Web Speech API do navegador, em português) |
@@ -166,8 +166,7 @@ evento `storage` (e por um `BroadcastChannel`), e cada uma se redesenha.
 Antes de alterar qualquer coisa, a tela lê o estado mais recente, para não
 apagar o que outra aba acabou de fazer.
 
-**Para demonstrar:** abra as três telas em abas ou janelas lado a lado,
-**no mesmo navegador**. Faça uma triagem e veja o paciente entrar na fila;
+**Para demonstrar:** abra `web/index.html` (a central) e use as abas do topo, ou o modo **Lado a lado**. Se preferir, também dá para abrir cada tela numa aba do navegador. Faça uma triagem e veja o paciente entrar na fila;
 clique em *Chamar próximo* e veja a senha aparecer no painel.
 
 > Use Chrome ou Edge abrindo os arquivos direto. No Firefox, cada arquivo
